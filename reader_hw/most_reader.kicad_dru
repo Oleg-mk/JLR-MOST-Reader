@@ -1,0 +1,5 @@
+(version 1)
+# one resolved spoke ties a pad to the pour well enough here: the pours are ground on both
+# sides and the parts are small; KiCad's default asks for two and calls one "starved"
+(rule "one spoke"
+  (constraint min_resolved_spokes 1))

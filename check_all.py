@@ -8,6 +8,8 @@ with environment variables:
     OSS_CAD           oss-cad-suite root, default ~/toolchains/oss-cad-suite (iverilog, vvp)
     MOST25_TO_AUDIO   the reference repo, default C:/Users/geniy/Desktop/MOST25-to-AUDIO
     MINGW_GCC         the host gcc, default C:/Users/geniy/toolchains/mingw64/bin/gcc.exe
+    KICAD_CLI         kicad-cli, default %LOCALAPPDATA%/Programs/KiCad/10.0/bin/kicad-cli.exe
+A missing tool fails its step; nothing is skipped.
 """
 from __future__ import annotations
 
@@ -29,6 +31,10 @@ STEPS = [
     ("gateware: nco_frame, the frame train (iverilog)", [PY, "reader_gw/sim/run_nco.py"]),
     ("gateware: amp_out + dsp_core + spdif_tx on one clock (iverilog)", [PY, "reader_gw/sim/run_amp.py"]),
     ("gateware: the whole reader from the line (iverilog)", [PY, "reader_gw/sim/run_e2e.py"]),
+    ("sheet: generated anew and unchanged", [PY, "tools/check_sheet.py"]),
+    ("sheet: ERC (kicad-cli)", ["KICAD", "sch", "erc", "--exit-code-violations", "--output", "reader_hw/erc.rpt",
+                               "reader_hw/most_reader.kicad_sch"]),
+    ("board: DRC and parity with the sheet (kicad-cli)", [PY, "tools/check_board.py"]),
 ]
 
 
@@ -36,11 +42,18 @@ def main() -> int:
     env = dict(os.environ)
     oss = Path(env.get("OSS_CAD", Path.home() / "toolchains" / "oss-cad-suite"))
     env["PATH"] = os.pathsep.join([str(oss / "bin"), str(oss / "lib"), env.get("PATH", "")])
+    kicad = env.get("KICAD_CLI", str(Path(env.get("LOCALAPPDATA", "")) / "Programs" / "KiCad" / "10.0" / "bin"
+                                     / "kicad-cli.exe"))
     results = []
     for name, cmd in STEPS:
+        cmd = [kicad if c == "KICAD" else c for c in cmd]
         t0 = time.time()
-        r = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)
-        ok = r.returncode == 0
+        try:
+            r = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)
+            ok, out = r.returncode == 0, r.stdout + r.stderr
+        except OSError as e:
+            ok, out = False, f"{cmd[0]}: {e}"
+        r = type("R", (), {"stdout": out, "stderr": ""})()
         tail = [l for l in (r.stdout + r.stderr).splitlines() if l.strip()]
         last = tail[-1] if tail else "(no output)"
         results.append((name, ok))
