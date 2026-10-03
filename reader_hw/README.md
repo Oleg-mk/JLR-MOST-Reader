@@ -119,10 +119,34 @@ standoff sits on ground copper only: TXD bends away from H1 and S/PDIF goes roun
 
 Checks on the routed board: DRC 0 violations with the schematic parity check, 0 unconnected
 items, no silkscreen overlaps (the only silk finding is J4's library outline at the board
-edge, as on the listener). Tracks run 558 mm, all on the top; 155 vias, all of them ground. `gen_reader_pcb.py --fresh` on a copy lays every part where the board has
+edge, as on the listener). The silkscreen is at JLCPCB's minimums: text 1.0 mm high with a 0.15 mm
+stroke, lines 0.15 mm (KiCad's footprints draw 0.12), checked by `tools/check_board.py`. The
+labels sit beside their parts, clear of every pad; in the crowded corners eight small parts'
+labels could not, and are hidden on the silk (C10, C17, C18, FB2, R1, R7 by J1; C47, C84). They
+stay on F.Fab. The board carries its stackup: 1.6 mm FR-4, 1 oz, ENIG. Tracks run 558 mm, all on the top; 155 vias, all of them ground. `gen_reader_pcb.py --fresh` on a copy lays every part where the board has
 it.
+
+## The manufacturing package
+
+`make_fab.py` writes `fab/` from the board and the sheet, as the listener's does: the Gerbers and
+both drill files with a zip for the board house, the BOM and the pick-and-place, the same two in
+JLCPCB's format for an order with the SMD parts assembled (every part with the LCSC number
+chosen for the listener on 2026-10-01; all of the reader's parts are among them, none is
+consigned), and a README with the board's numbers and the order steps. Every date in the files
+is the board's title-block date, so the package is the same on every run, and `check_all.py`
+fails when it no longer matches the board or the commit. By hand after delivery: J1 (the FOT
+unit), J4 (Micro-Fit), J6 (TOSLINK; not stocked at LCSC or JLCPCB, bought from Mouser or
+DigiKey) and M1 (the Tang Nano, on its own pin headers). The CPL's rotations were read off each
+chosen part's LCSC footprint: the community table's 180 for the electrolytics and for VSSOP-8 would
+have put C44, C45 and C63 in reversed and U4 across its pads (the pre-order review of 2026-10-03).
+
+```text
+python reader_hw/make_fab.py
+```
 
 ## Next
 
-`make_fab.py` in the listener's manner for the manufacturing package; then the order, bring-up on
-the bench and the car.
+The first boards: bring-up on the bench (the supplies, then the bitstream over the module's own
+USB-C, SRAM first, then flash), then the car (the ring's bypass first, then the reader). Before
+the first car trip the gateware should get a capture and log over the module's USB-UART: the
+LEDs are its only diagnostics today.

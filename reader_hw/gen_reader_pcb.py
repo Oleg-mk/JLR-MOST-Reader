@@ -170,6 +170,9 @@ def load_footprint(fpid):
     fp = pcbnew.FootprintLoad(str(path), name)
     if fp is None:
         raise SystemExit(f"footprint {fpid} not found in {path}")
+    for g in fp.GraphicalItems():           # JLCPCB's silkscreen minimum: 0.15 mm lines (KiCad draws 0.12)
+        if g.GetLayer() == pcbnew.F_SilkS and g.GetClass() == "PCB_SHAPE" and g.GetWidth() < mm(0.15):
+            g.SetWidth(mm(0.15))
     return fp
 
 
@@ -208,7 +211,9 @@ def courtyard(fp):
 
 
 def texts(fp):
-    """Small parts: the reference above the part in 0.8 mm text; test points show their net
+    """Small parts: the reference above the part in 1.0 mm text, 0.15 mm stroke (JLCPCB's minimum;
+    on the board the labels were then placed by hand, and in the crowded corners some hidden on the
+    silk, kept on F.Fab); test points show their net
     instead; the mounting holes show nothing."""
     ref = fp.GetReference()
     r, v = fp.Reference(), fp.Value()
@@ -234,11 +239,11 @@ def texts(fp):
             pos = pt(x, y)
         else:                                   # a test point the table does not know: below it
             just = 0
-            pos = pcbnew.VECTOR2I(bb.GetCenter().x, bb.GetBottom() + mm(0.8))
+            pos = pcbnew.VECTOR2I(bb.GetCenter().x, bb.GetBottom() + mm(1.0))
         if just < 0:
             v.SetHorizJustify(pcbnew.GR_TEXT_H_ALIGN_LEFT)
-    t.SetTextSize(pcbnew.VECTOR2I(mm(0.8), mm(0.8)))
-    t.SetTextThickness(mm(0.12))
+    t.SetTextSize(pcbnew.VECTOR2I(mm(1.0), mm(1.0)))
+    t.SetTextThickness(mm(0.15))
     t.SetTextAngleDegrees(TPTEXT[ref][3] if ref in TPTEXT and len(TPTEXT[ref]) > 3 else 0)
     t.SetPosition(pos)
 
@@ -257,6 +262,8 @@ def build():
     ds.m_MinThroughDrill = mm(0.3)
     ds.m_MinClearance = mm(0.127)
     ds.m_CopperEdgeClearance = mm(0.3)
+    ds.m_MinSilkTextHeight = mm(1.0)            # JLCPCB's silkscreen minimum
+    ds.m_MinSilkTextThickness = mm(0.15)
     # net classes (they land in the project file): 0.25 mm tracks, 0.15 clearance (the 0.5 mm
     # pitch packages leave 0.15 between pads, and their GND pads are in Power), 0.6/0.3 vias;
     # Power 0.6 mm tracks, 0.8/0.4 vias; Rail 0.35 mm
@@ -390,6 +397,30 @@ def canonical(path):
     path.write_text(re.sub(r'\(uuid ""\)', number, head + body + tail), encoding="utf-8", newline="\n")
 
 
+# the stackup the package's job file reports: 1.6 mm FR-4, 1 oz copper, green mask, white
+# silkscreen, ENIG (flat pads for the 0.5 mm pitch VSSOP and the exposed pads). pcbnew's python
+# cannot set it, so it goes into (setup) as text, as KiCad writes it.
+STACKUP = (("F.SilkS", '(type "Top Silk Screen")', '(color "White")'),
+           ("F.Paste", '(type "Top Solder Paste")'),
+           ("F.Mask", '(type "Top Solder Mask")', '(color "Green")', "(thickness 0.01)"),
+           ("F.Cu", '(type "copper")', "(thickness 0.035)"),
+           ("dielectric 1", '(type "core")', "(thickness 1.51)", '(material "FR4")', "(epsilon_r 4.5)",
+            "(loss_tangent 0.02)"),
+           ("B.Cu", '(type "copper")', "(thickness 0.035)"),
+           ("B.Mask", '(type "Bottom Solder Mask")', '(color "Green")', "(thickness 0.01)"),
+           ("B.Paste", '(type "Bottom Solder Paste")'),
+           ("B.SilkS", '(type "Bottom Silk Screen")'))
+
+
+def stackup(path):
+    t3, t4 = "\t" * 3, "\t" * 4
+    layers = "".join(f'{t3}(layer "{name}"\n' + "".join(f"{t4}{a}\n" for a in attrs) + f"{t3})\n"
+                     for name, *attrs in STACKUP)
+    block = f'\t\t(stackup\n{layers}{t3}(copper_finish "ENIG")\n{t3}(dielectric_constraints no)\n\t\t)\n'
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text.replace("\n\t(setup\n", "\n\t(setup\n" + block, 1), encoding="utf-8", newline="\n")
+
+
 def main():
     out = HERE / f"{PROJECT}.kicad_pcb"
     if out.exists() and "--fresh" not in sys.argv:
@@ -401,6 +432,7 @@ def main():
     (HERE / f"{PROJECT}.kicad_dru").write_text(RULES, encoding="utf-8", newline="\n")
     pcbnew.SaveBoard(str(out), board)
     canonical(out)
+    stackup(out)
     print(f"wrote {out}: {len(comps)} parts + {len(HOLES)} holes, {len(nets)} nets, {W:.2f} x {H - TOP:.2f} mm, no tracks")
     parked = [r for r, (x, y, rot) in PLACE.items() if x > W]
     if parked:

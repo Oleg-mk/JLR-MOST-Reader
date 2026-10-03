@@ -37,6 +37,11 @@ STEPS = [
     ("board: DRC and parity with the sheet (kicad-cli)", [PY, "tools/check_board.py"]),
     ("gateware: OSER8 and IDES8 word order on Gowin's models (iverilog)", [PY, "reader_gw/sim/run_oser.py"]),
     ("pins: the module's wiring on the sheet against the gateware's .cst", [PY, "tools/check_pins.py"]),
+    ("fab: the manufacturing package (make_fab.py)", [PY, "reader_hw/make_fab.py"]),
+    ("fab: the package matches the commit",
+     [PY, "-c", "import subprocess, sys; o = subprocess.run(['git', 'status', '--porcelain', '--', 'reader_hw/fab'], "
+                "capture_output=True, text=True).stdout; print(o or 'reader_hw/fab is the committed package'); "
+                "sys.exit(1 if o.strip() else 0)"]),
 ]
 
 
