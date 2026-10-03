@@ -64,7 +64,9 @@ module rx_framer #(
     output wire       fs_sq,          // frame-rate square wave, 50 %, on the clk grid
     output reg        fe_valid,       // a frame edge: UI 0 (fe_rise) or UI 512
     output reg        fe_rise,
-    output reg [31:0] fe_t            // its sample time
+    output reg [31:0] fe_t,           // its sample time
+    output wire [31:0] fe_next        // a UI 0's time a clock early: in the clock before fe_valid
+                                      // brings it (ev_start high), the value fe_t takes then
 );
     reg        in_frame;
     reg [10:0] pos;                   // UI position inside the frame
@@ -81,6 +83,7 @@ module rx_framer #(
     reg [11:0] sig_q;                 // ... with this run pattern
     reg        ev_start, ev_mid;      // a frame started / UI 512 passed in this clock (times leave a clock later)
     reg [31:0] prev_q, symt_q;
+    assign fe_next = prev_q;
     wire [31:0] f0_now;               // UI 0 of the frame in progress, also in the clock right after start
     reg        bad;                   // one strike used: the next frame must open on time
     reg [31:0] f0_t;                  // sample time of UI 0 of the frame in progress
@@ -89,9 +92,13 @@ module rx_framer #(
     // synthesizer, win's bits were read from across the chip)
     reg [17:0] flen /* synthesis syn_preserve = 1 */;   // 1024 UI in whole samples, from ui_q
     reg [17:0] win  /* synthesis syn_preserve = 1 */;   // 4 UI
+    // -4 UI, from the same ui_q in the same clock as win, so always exactly -win: stage B's
+    // ontime compare had the negation in front of it (win -> ontime_b was 10.4 ns)
+    reg [17:0] nwin /* synthesis syn_preserve = 1 */;
     always @(posedge clk) begin
         flen <= {2'b0, ui_q} << 2;                  // ui_q x 1024 / 256
         win  <= {2'b0, ui_q} >> 6;                  // ui_q x 4 / 256
+        nwin <= 18'd0 - ({2'b0, ui_q} >> 6);
     end
     // A run's start against the due time, modulo 2^18 samples (16 frames):
     // subtracted as the run enters (stage A), compared a clock later (stage B),
@@ -107,6 +114,7 @@ module rx_framer #(
     reg  [31:0] t_a;
     reg         ontime_b, late_b;     // with sym_valid (stage B)
     wire signed [17:0] w_s = win;
+    wire signed [17:0] nw_s = nwin;
     reg  [13:0] strike;               // clocks the strike has been open
     reg         expired;              // ... too many of them
     reg  [1:0]  fresh;                // runs after a strike whose stage A/B values predate it
@@ -114,7 +122,7 @@ module rx_framer #(
         sv_a <= sym_valid_i & ~rst; sym_a <= sym_i; t_a <= sym_t_i;
         if (sym_valid_i) prev_a <= sym_t_i;
         d_a  <= prev_a[17:0] - exp_t[17:0];
-        ontime_b <= d_a >= -w_s && d_a <= w_s;
+        ontime_b <= d_a >= nw_s && d_a <= w_s;
         late_b   <= d_a > w_s;
         strike  <= (rst || !bad || in_frame) ? 14'd0 : expired ? strike : strike + 14'd1;
         expired <= !rst && bad && !in_frame && (strike == STRIKE_MAX[13:0] - 14'd1 || expired);

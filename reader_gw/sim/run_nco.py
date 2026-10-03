@@ -15,7 +15,9 @@ has settled (SETTLE frames after the pin, and after a relock):
   JUMP    when the ring's frame timing jumps, the train is pinned anew and runs again within
           a few frames (the offset check after the jump covers the rest)
 Corners, all at 48 kHz, the rate of JLR: exact; +1000 ppm with 2 samples of jitter; -1000 ppm
-with 3 samples of jitter; a lock gap of 40 frames; a jump of the frame timing by 3000 samples.
+with 3 samples of jitter; a lock gap of 40 frames; a jump of the frame timing by 3000 samples;
+steps of the ring's timing (155..188 samples earlier, no jitter) that put the train's tick at
+UI 0 in the clock before the edge's, in it, and in each clock the edge is in flight.
 
     python run_nco.py [--only NAME]        needs oss-cad-suite on PATH
 """
@@ -44,6 +46,17 @@ CORNERS = {
     "48k_slow_jit":  (48000, -1000,  3,               400,    None,                None),
     "48k_gap":       (48000,  0,     1,               400,    (150, 40),           None),
     "48k_jump":      (48000,  0,     1,               400,    None,                (200, 3000)),
+    # The ring's timing steps earlier by J samples, no jitter, at an exact 48 kHz: the train's
+    # tick at UI 0 stays on the old timing, a whole word, and the edge comes J + 160 samples
+    # after it, so J puts that tick in a chosen clock around the edge's clock E - the cases
+    # nco_frame takes apart for timing: E-1 (the error against the tick of that clock), E,
+    # E+1 and E+2 (the tick came while the edge was in flight: corrected on landing), E+3 (the
+    # tick in the landing clock).
+    "48k_tick_Em1":  (48000,  0,     0,               300,    None,                (150, -155)),
+    "48k_tick_E":    (48000,  0,     0,               300,    None,                (150, -164)),
+    "48k_tick_E1":   (48000,  0,     0,               300,    None,                (150, -172)),
+    "48k_tick_E2":   (48000,  0,     0,               300,    None,                (150, -180)),
+    "48k_tick_E3":   (48000,  0,     0,               300,    None,                (150, -188)),
 }
 
 

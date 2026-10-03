@@ -6,3 +6,6 @@ reader_hw/erc.rpt
 *-backups/
 ~*.lck
 .history/
+
+# gateware: the Gowin build's output (bitstream, reports); python build.py in reader_gw/board makes it
+reader_gw/board/impl/

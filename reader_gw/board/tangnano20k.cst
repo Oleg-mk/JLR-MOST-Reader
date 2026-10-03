@@ -1,0 +1,38 @@
+// Tang Nano 20K pin constraints for top_tangnano20k.v, the reader board.
+// Pin map: reader_hw/most_reader.kicad_sch block 5 (the Tang Nano 20K symbol: header pin -> FPGA
+// pin), against the Sipeed Tang Nano 20K Datasheet v1.3 p. 5 (the corrected pinout), as
+// MOST25-to-AUDIO's. Every bank used is VCCIO 3.3 V.
+// The board wires two FPGA signal pins, both shared on the module only with the empty LCD
+// connector: the ring's line in on 27 and the S/PDIF out on 42 (as on the listener); and pin 16
+// (LED1) as 3V3_SW, the supply of U3 and J6.
+IO_LOC "clk27" 4;
+IO_PORT "clk27" IO_TYPE=LVCMOS33 PULL_MODE=UP BANK_VCCIO=3.3;
+
+// RX_IN, header pin 8: U3 (74LVC1G125) drives it, IDES8
+IO_LOC "rx_in" 27;                 // LCD_B7
+IO_PORT "rx_in" IO_TYPE=LVCMOS33 PULL_MODE=NONE BANK_VCCIO=3.3;
+
+// SPDIF_F, header pin 25: R28 (33 ohm) into J6 (PLT133/T10W, a CMOS input), OSER8
+IO_LOC "spdif" 42;                 // LCD_R3
+IO_PORT "spdif" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+
+// the module's audio amplifier (not wired on the board): held shut down
+IO_LOC "pa_en" 51;                 // PA_EN
+IO_PORT "pa_en" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+
+// 3V3_SW, header pin 7: U3 and J6 run from it (held high; LED1 stays dark). The strongest drive:
+// J6 takes 3 mA, 10 at most (PLT133), and wants 3.0 V or more
+IO_LOC "sw_vcc" 16;                // LED1
+IO_PORT "sw_vcc" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=24 BANK_VCCIO=3.3;
+
+// onboard LEDs, active low (their header pins are not wired on the board)
+IO_LOC "led_n[0]" 15;
+IO_LOC "led_n[1]" 17;
+IO_LOC "led_n[2]" 18;
+IO_LOC "led_n[3]" 19;
+IO_LOC "led_n[4]" 20;
+IO_PORT "led_n[0]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_PORT "led_n[1]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_PORT "led_n[2]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_PORT "led_n[3]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_PORT "led_n[4]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;

@@ -32,13 +32,15 @@ module tb_amp;
     integer     ke = 0;                     // edges delivered
     reg         fev = 0, lk = 0;
     reg  [31:0] fet = 0;
+    reg         fes = 0;                    // an edge is announced: fev and fet follow next clock
+    reg  [31:0] fen = 0;                    // its time, a clock early (fe_next)
     reg  [31:0] edge_t;
-    wire        run, tick, per_ok, rate48;
+    wire        run, tick, fstart, per_ok, rate48;
     wire [2:0]  sub;
     wire [9:0]  phase_n;
     wire [31:0] per, err_last;
-    nco_frame u_nco (.clk(clk), .rst(rst), .wc(wc), .locked(lk), .fe_valid(fev), .fe_rise(1'b1), .fe_t(fet),
-                     .run(run), .tick(tick), .sub(sub), .phase_n(phase_n), .per(per), .per_ok(per_ok),
+    nco_frame u_nco (.clk(clk), .rst(rst), .wc(wc), .locked(lk), .fe_valid(fev), .fe_rise(1'b1), .fe_t(fet), .fe_next(fen),
+                     .run(run), .tick(tick), .fstart(fstart), .sub(sub), .phase_n(phase_n), .per(per), .per_ok(per_ok),
                      .rate48(rate48), .err_last(err_last));
 
     // ---------------------------------------------------------- the design
@@ -48,7 +50,7 @@ module tb_amp;
     wire       spdif, overrun;
     amp_out dut (.clk(clk), .rst(rst), .cmd_ok(cmd_ok), .cmd(cmd), .cmd_p(cmd_p),
                  .byte_we(bwe), .byte_addr(ba), .byte_data(bd), .frame_done(fdone),
-                 .run(run), .tick(tick), .sub(sub), .phase_n(phase_n), .rate48(rate48),
+                 .run(run), .tick(tick), .fstart(fstart), .sub(sub), .phase_n(phase_n), .rate48(rate48),
                  .spdif_word(word), .spdif(spdif), .overrun(overrun));
 
     // ------------------------------------------------- frames in
@@ -60,12 +62,18 @@ module tb_amp;
         @(negedge rst);
         forever begin
             @(negedge clk);
-            fev = 0;
-            edge_t = $rtoi(t0 + ke * period + 0.5);
-            if ($signed(now - edge_t - DELAY) >= 0) begin
-                fev = 1; fet = edge_t; lk = 1;
+            // the edge announced in the clock before: the receiver puts a UI 0's time out on
+            // fe_next a clock before fe_valid brings it on fe_t
+            fev = fes;
+            if (fes) begin
+                fet = fen; lk = 1;
                 ke = ke + 1;
                 if (ke >= 2 && nf < NFRAMES) burst = 1;
+            end
+            fes = 0;
+            edge_t = $rtoi(t0 + ke * period + 0.5);
+            if ($signed(now - edge_t - (DELAY - 8)) >= 0) begin
+                fes = 1; fen = edge_t;
             end
         end
     end

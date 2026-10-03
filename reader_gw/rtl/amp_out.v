@@ -53,6 +53,7 @@ module amp_out (
     // the frame train (nco_frame)
     input  wire        run,                 // the train is pinned to the ring and running
     input  wire        tick,
+    input  wire        fstart,              // the tick is the frame start's (tick && phase_n == 0)
     input  wire [2:0]  sub,
     input  wire [9:0]  phase_n,
     input  wire        rate48,              // the ring runs at 48 kHz (S/PDIF channel status)
@@ -177,8 +178,20 @@ module amp_out (
     // the set being written: its tag and the addresses it has so far
     reg  [7:0]             t_cur = 8'd0;
     reg  [DSP_C_IMAGE-1:0] have = {DSP_C_IMAGE{1'b0}};
-    wire [DSP_C_IMAGE-1:0] have_n = (w03_t == t_cur ? have : {DSP_C_IMAGE{1'b0}}) |
-                                    ({{(DSP_C_IMAGE-1){1'b0}}, 1'b1} << w03_a);
+    // The word's tag against t_cur and the word's address as one bit, both
+    // taken a clock early from p_q, where w03_t and w03_a come from: same_q is
+    // w03_t == t_cur and a_bit the bit of w03_a, in every clock. t_cur is
+    // compared as it will be then (w03_t if a word lands now), so words one
+    // clock apart compare right. Done in the clock of the word, the compare,
+    // the 47-bit pick and the AND over all of it came to 9.3 ns before the
+    // commit's enables: inside 10.1 ns, not inside check_timing.py's 10 %.
+    reg                    same_q = 1'b0;
+    reg  [DSP_C_IMAGE-1:0] a_bit = {DSP_C_IMAGE{1'b0}};
+    always @(posedge clk) begin
+        same_q <= p_q[7:0] == (w03 ? w03_t : t_cur);
+        a_bit  <= {{(DSP_C_IMAGE-1){1'b0}}, 1'b1} << p_q[53:48];
+    end
+    wire [DSP_C_IMAGE-1:0] have_n = (same_q ? have : {DSP_C_IMAGE{1'b0}}) | a_bit;
     wire        running;
     always @(posedge clk) begin
         if (w03) begin
@@ -203,7 +216,7 @@ module amp_out (
     wire [5:0]  c_addr;
     reg  [31:0] c_q;
     wire [47:0] out_w;
-    wire        start = run && tick && phase_n == 10'd0;
+    wire        start = run && fstart;     // run && tick && phase_n == 0, made by nco_frame with the tick
     always @(posedge clk) c_q <= cmem[{bank_r, c_addr}];
     dsp_core u_dsp (.clk(clk), .rst(rst), .start(start), .in_w(in_w), .c_addr(c_addr),
                     .c_q(c_q), .out_w(out_w), .running(running), .overrun(overrun));
@@ -211,6 +224,6 @@ module amp_out (
     // ------------------------------------------------ S/PDIF out
     // out_w is written during the program run (~450 clocks after the frame
     // start) and latched by spdif_tx at the next frame start
-    spdif_tx u_sp (.clk(clk), .run(run), .tick(tick), .sub(sub), .phase_n(phase_n), .lr(out_w),
+    spdif_tx u_sp (.clk(clk), .run(run), .tick(tick), .fstart(fstart), .sub(sub), .phase_n(phase_n), .lr(out_w),
                    .rate48(rate48), .word(spdif_word), .out(spdif));
 endmodule

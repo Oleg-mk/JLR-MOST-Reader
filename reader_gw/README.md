@@ -20,6 +20,8 @@ come over from `MOST25-to-AUDIO/listener_gw`.
 | `sim/tb_amp.v`, `run_amp.py`, `spdif_line.py`, `spdif_dec.py`, `dsp_asm.py` | amp_out on the train against the bit-exact model, the line read back off the grid | from run_dsp.py |
 | `sim/make_stim.py`, `compare.py` | the line stimulus for the receiver | copied |
 | `rtl/reader_core.v` | the whole reader on one clock: the ring's samples in, S/PDIF out; the board top wraps it | new |
+| `board/top_tangnano20k.v`, `tangnano20k.cst`, `.sdc`, `build.tcl`, `build.py`, `check_timing.py` | the board top: rPLL, CLKDIV, IDES8 on the ring's line, OSER8 on the S/PDIF line, LEDs; the pins; the Gowin build and its timing check | new (from the listener's) |
+| `sim/run_oser.py` | the OSER8's and the IDES8's word order on Gowin's own models | new |
 | `sim/ring_stim.py`, `tb_core.v`, `run_e2e.py` | a JLR ring on the line through the whole reader, every link checked | new |
 
 ## ctrl_decode
@@ -113,6 +115,71 @@ puts the line out as 8 samples a clock (`word`, for OSER8 as `fs_fine` does it):
 names the sample its half-cell opens on, and the edge lands there. The coding is unchanged
 (IEC 60958-3 consumer, 24 bit, the rate in the channel status).
 
+## The board top and its pins
+
+`board/top_tangnano20k.v` wraps `reader_core` for the reader board (`reader_hw`). The board wires
+three FPGA pins and nothing else:
+
+| FPGA pin | Header pin | Net | Use |
+|---|---|---|---|
+| 27 (LCD_B7, IOB8[A]) | 8 | RX_IN, from U3 | the ring's line, IDES8 at 792 Msps |
+| 42 (LCD_R3, IOB42[B]) | 25 | SPDIF_F, to R28 and J6 | the S/PDIF line, OSER8 on the same grid |
+| 16 (LED1, bank 6) | 7 | 3V3_SW, to U3 and J6 | held high, the strongest drive: U3's and J6's supply |
+
+The two signals are shared on the module only with its empty LCD connector. Pin 28, the other
+half of pin 27's IOB pair, is left unwired; pin 42's other half has no pin on the QN88 package.
+Pin 16 is a supply: J6 takes 3 mA, 10 at most (PLT133), U3 microamps; the module's own 3.3 V
+pins sit at its bottom, and their line up to U3 and J6 had to cross /WAKE with a jumper on the
+board. Bank 6 carries only the LEDs besides it, away from the crystal's bank 7 and the serdes
+pins' banks 5 and 4. The rest is the module's own: the 27 MHz crystal on pin 4, five LEDs on
+pins 15, 17..20 (their header pins are not wired) and the audio amplifier's enable on pin 51,
+held low. 5 V comes in on header pin 21 through D3, ground on 20, 22 and 35; the module's
+3.3 V pins are not used. `tools/check_pins.py` reads the sheet's netlist and the `.cst`
+and fails if they part.
+
+The clocks are the listener's: 27 MHz x 44 / 3 = 396 MHz from the rPLL feeds both serdes as
+FCLK, and CLKDIV /4 makes clk_s, 99 MHz. `sim/run_oser.py` runs Gowin's own OSER8, IDES8 and
+CLKDIV models: the OSER8 sends D0 first and D7 last, and a random stream sent through OSER8
+into IDES8 comes back bit for bit in order, so bit 0 is the earliest sample on both sides, as
+`reader_core` assumes.
+
+LEDs, active low: 0 receiver locked, 2 frame train running, 3 frame parity known, 4 one of our
+messages decoded (85 ms flash), 5 a block dropped (flash) or an engine overrun (stays on).
+LED 1 is dark: its pin is 3V3_SW.
+
+Build: `cd board && python build.py` runs `gw_sh build.tcl` and then `check_timing.py`, which
+fails when a clock misses its constraint or keeps less than 10 % margin.
+
+### Timing on the chip
+
+The first build of this top (2026-10-03) reached 60 MHz against 99: 621 paths missed, all of
+them in the reader's own logic, which the simulations cannot see. Each was taken apart into
+registered steps, the module doing exactly what it did, and is now:
+
+| Where | What missed | What it does now |
+|---|---|---|
+| `ctrl_decode` | a block's match, format check and table writes in one clock (16 ns) | three steps (decode and compares, the message, what it does to each stream); the tables written together in the last; commands leave 3 clocks later, positions and levels still take effect on the same frame |
+| `dsp_core` | OUT's rounding: Gowin built acc + 2^32 as a ripple of LUTs (16 deep) before the saturation | the rounding spread over the three clocks acc holds still (proved equal for all 2^72 values); the D-write decoded a clock early; out_w lands 2 clocks later, 1600 clocks before spdif_tx reads it |
+| `amp_out` | the commit's tag compare into the bank switch | the compare registered with the word (proved equal clock for clock) |
+| `nco_frame` | the period (history read, subtract, range check) and the frame edge's error (subtract, wrap, correction into the 56-bit train) in the edge's clock; the train's own compare of the next tick against the word counter | the edge's result lands 3 clocks later (the correction is relative, so the train ends up where it did); the period and the error's subtract start a clock early from `rx_framer`'s `fe_next` (the edge's time, a clock before `fe_valid` brings it); the train keeps the time to its next tick as a register, so "a tick is due" is a sign bit; the adders' operands are set up a clock ahead |
+| `rx_framer` | one path just under the margin | a compare of two registers |
+
+Result: clk_s 125.2 MHz against 99 (26.5 % margin) at first. Pin 16 as a supply and five LEDs
+moved the placement, and the same design came out between 102 and 125 MHz from build to build:
+paths near 9 ns that placement alone pushes over or under the 10 % rule. Four more were taken
+apart for that (the S/PDIF coder works out the next half-cell a clock ahead; the edge's take of
+the period is the last choice of each register it sets; the history's RAM output goes through a
+flip-flop before the subtract; the history range register is copied by synthesis), each exactly
+equal in what it does. Now 109.5 MHz, 10.6 % margin: the rule holds, by a little; the margin
+moves with placement. Setup and hold met everywhere; the one warning left is PR1014 (the
+crystal reaches the PLL on general routing), as on the listener.
+The chip is mostly free: logic 26 %, registers 30 %, 7 of 46 BSRAM, 3 of 24 DSP.
+The checks that it still does the same: `run_ctrl.py`, `run_nco.py` (with three corners added
+that put the train's tick at UI 0 next to the edge's clock), `run_amp.py`, `run_e2e.py`; the
+tick logs of every `run_nco.py` corner equal, line for line, those of the reviewed intermediate
+version; the reworked `nco_frame` and `ctrl_decode` were each checked against their earlier
+forms by independent cycle models (0 differences over millions of clocks).
+
 ## Verified, and how
 
 ```text
@@ -137,7 +204,9 @@ one frame of 40. It also checks that `rtl/gain_rom.vh` is what `gain_tables.py` 
 
 `run_nco.py`: frame edges made in Python, all at 48 kHz, the rate of JLR: exact, +1000 ppm with
 2 samples of jitter, -1000 ppm with 3 samples, a 40-frame lock gap, a jump of the frame timing
-by 3000 samples; delivered 160 samples late as the receiver does. Every running frame has
+by 3000 samples, steps of 150, 160 and 170 samples earlier (the train's tick at UI 0 then falls
+next to the edge's clock); delivered 160 samples late as the receiver does, each announced on
+fe_next a clock before. Every running frame has
 exactly 1024 ticks; the ring's UI 0 falls 128 ticks before the train's frame start to within
 the edges' own jitter and the offset does not wander; every tick interval is the period to
 within the grid and the loop's step; the period comes out to 1 ppm (4 ppm with jittered edges,

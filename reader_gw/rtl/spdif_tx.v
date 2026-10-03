@@ -23,6 +23,7 @@ module spdif_tx (
     input  wire        clk,
     input  wire        run,                 // the frame train runs
     input  wire        tick,                // a tick in this clock...
+    input  wire        fstart,              // ...the frame start's (tick && phase_n == 0)
     input  wire [2:0]  sub,                 // ...at this sample of its 8
     input  wire [9:0]  phase_n,             // the phase after the tick
     input  wire [47:0] lr,                  // L R, 24 bit each, L on top (amp_out's out_w)
@@ -36,7 +37,15 @@ module spdif_tx (
                                             // partial one run may start in): only those count
     reg         inv;                        // the line before this subframe's preamble
     wire        hc   = tick && phase_n[2:0] == 3'd0;     // a half-cell opens
-    wire [6:0]  h    = phase_n[9:3];                     // half-cell 0..127 of the frame
+    // What the next half-cell carries is worked out a clock ahead, from phase_n as it stands the
+    // clock before (a half-cell opens on a tick that moves phase_n on by one, so the one opening
+    // next is phase_n[9:3] + 1 then; the only jump of phase_n, the first tick after a pin, comes
+    // while the train does not run). s, fr and rate48 are the same a clock earlier: s changes at
+    // the frame start (h 0, which reads no sample), fr at h 127, rate48 when an edge lands, near
+    // the phase of UI 0 (h about 112), far from slots 30 and 31 where the channel status and the
+    // parity read it. In the opening clock only the line's own levels are left to it - the sample
+    // bit, the parity and the preamble were the slow path.
+    wire [6:0]  h    = phase_n[9:3] + 7'd1;              // the next half-cell 0..127 of the frame
     wire        subf = h[6];                             // 0 left, 1 right
     wire [4:0]  slot = h[5:1];                           // time slot 0..31
     wire        half = h[0];
@@ -53,12 +62,22 @@ module spdif_tx (
     wire [7:0]  px  = 8'b0100_0111;                      // X: 1110 0010
     wire [7:0]  py  = 8'b0010_0111;                      // Y: 1110 0100
     wire [7:0]  pre = subf ? py : (fr == 8'd0) ? pz : px;
-    wire        pre0 = h[2:0] == 3'd0 && slot == 5'd0;   // the preamble's first half-cell
+    reg         q_pre0, q_p0, q_pre, q_pb, q_half, q_b, q_h0, q_h127;
+    always @(posedge clk) begin
+        q_pre0 <= h[2:0] == 3'd0 && slot == 5'd0;        // the preamble's first half-cell
+        q_p0   <= pre[0];
+        q_pre  <= slot < 5'd4;                           // in the preamble
+        q_pb   <= pre[h[2:0]];
+        q_half <= half;
+        q_b    <= b;
+        q_h0   <= h == 7'd0;
+        q_h127 <= h == 7'd127;
+    end
     // the line after this half-cell opens
-    wire        nxt  = pre0        ? pre[0] ^ out :
-                       (slot < 5'd4) ? pre[h[2:0]] ^ inv :
-                       !half       ? ~out :              // every cell opens with an edge
-                       b           ? ~out : out;         // a 1: one more in the middle
+    wire        nxt  = q_pre0      ? q_p0 ^ out :
+                       q_pre       ? q_pb ^ inv :
+                       !q_half     ? ~out :              // every cell opens with an edge
+                       q_b         ? ~out : out;         // a 1: one more in the middle
 
     integer i;
     initial begin out = 1'b0; word = 8'd0; s = 48'd0; fr = 8'd0; whole = 1'b0; inv = 1'b0; end
@@ -66,13 +85,13 @@ module spdif_tx (
         if (!run) begin
             out <= 1'b0; word <= 8'd0; fr <= 8'd0; whole <= 1'b0; inv <= 1'b0;
         end else begin
-            if (tick && phase_n == 10'd0) s <= lr;
+            if (fstart) s <= lr;                  // tick && phase_n == 0
             if (hc) begin
-                if (pre0) inv <= out;                    // the line before the preamble
+                if (q_pre0) inv <= out;                  // the line before the preamble
                 out <= nxt;
                 for (i = 0; i < 8; i = i + 1) word[i] <= (i >= sub) ? nxt : out;
-                if (h == 7'd0) whole <= 1'b1;
-                if (h == 7'd127 && whole) fr <= (fr == 8'd191) ? 8'd0 : fr + 8'd1;
+                if (q_h0) whole <= 1'b1;
+                if (q_h127 && whole) fr <= (fr == 8'd191) ? 8'd0 : fr + 8'd1;
             end else begin
                 word <= {8{out}};
             end

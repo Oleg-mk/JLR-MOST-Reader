@@ -35,6 +35,8 @@ STEPS = [
     ("sheet: ERC (kicad-cli)", ["KICAD", "sch", "erc", "--exit-code-violations", "--output", "reader_hw/erc.rpt",
                                "reader_hw/most_reader.kicad_sch"]),
     ("board: DRC and parity with the sheet (kicad-cli)", [PY, "tools/check_board.py"]),
+    ("gateware: OSER8 and IDES8 word order on Gowin's models (iverilog)", [PY, "reader_gw/sim/run_oser.py"]),
+    ("pins: the module's wiring on the sheet against the gateware's .cst", [PY, "tools/check_pins.py"]),
 ]
 
 

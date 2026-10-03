@@ -35,7 +35,7 @@ module reader_core #(
     wire rv, rl, gl; wire [7:0] rlen; wire [31:0] run_tm;
     wire sv, sl; wire [1:0] sym; wire [3:0] slen; wire [15:0] ui_q; wire [31:0] sym_tm;
     wire bwe, fd, fpar, bk, rx_lk, er; wire [5:0] ba; wire [7:0] bd; wire [3:0] bi;
-    wire fev, fer; wire [31:0] fet;
+    wire fev, fer; wire [31:0] fet, fen;
     rx_runlen   u_rl (.clk(clk), .rst(rst), .samp(samp), .wc(wc), .run_valid(rv), .run_len(rlen),
                       .run_level(rl), .glitch(gl), .run_t(run_tm));
     rx_classify #(.RELEARN(RELEARN))
@@ -45,13 +45,13 @@ module reader_core #(
     rx_framer   u_fr (.clk(clk), .rst(rst), .sym_valid_i(sv), .sym_i(sym), .sym_t_i(sym_tm), .ui_q(ui_q),
                       .byte_we(bwe), .byte_addr(ba), .byte_data(bd), .frame_done(fd),
                       .frame_par(fpar), .blk_idx(bi), .blk_known(bk), .locked(rx_lk),
-                      .err(er), .fs_sq(), .fe_valid(fev), .fe_rise(fer), .fe_t(fet));
+                      .err(er), .fs_sq(), .fe_valid(fev), .fe_rise(fer), .fe_t(fet), .fe_next(fen));
 
     // ------------------------------------------------------------ the frame train
-    wire run, tick, per_ok, rate48; wire [2:0] sub; wire [9:0] phase_n; wire [31:0] per, err_last;
+    wire run, tick, fstart, per_ok, rate48; wire [2:0] sub; wire [9:0] phase_n; wire [31:0] per, err_last;
     nco_frame #(.D_TICKS(D_TICKS), .AVG_LOG2(AVG_LOG2))
-              u_nco (.clk(clk), .rst(rst), .wc(wc), .locked(rx_lk), .fe_valid(fev), .fe_rise(fer), .fe_t(fet),
-                     .run(run), .tick(tick), .sub(sub), .phase_n(phase_n), .per(per), .per_ok(per_ok),
+              u_nco (.clk(clk), .rst(rst), .wc(wc), .locked(rx_lk), .fe_valid(fev), .fe_rise(fer), .fe_t(fet), .fe_next(fen),
+                     .run(run), .tick(tick), .fstart(fstart), .sub(sub), .phase_n(phase_n), .per(per), .per_ok(per_ok),
                      .rate48(rate48), .err_last(err_last));
 
     // ------------------------------------------------------------ the control channel
@@ -66,7 +66,7 @@ module reader_core #(
     wire overrun;
     amp_out u_amp (.clk(clk), .rst(rst), .cmd_ok(cok), .cmd(ccmd), .cmd_p(cp),
                    .byte_we(bwe), .byte_addr(ba), .byte_data(bd), .frame_done(fd),
-                   .run(run), .tick(tick), .sub(sub), .phase_n(phase_n), .rate48(rate48),
+                   .run(run), .tick(tick), .fstart(fstart), .sub(sub), .phase_n(phase_n), .rate48(rate48),
                    .spdif_word(spdif_word), .spdif(spdif), .overrun(overrun));
 
     assign status = {overrun, dropped, hit, par_known, per_ok, bk, run, rx_lk};

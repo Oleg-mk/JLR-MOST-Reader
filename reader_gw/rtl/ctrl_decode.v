@@ -58,6 +58,9 @@
 // k x gain per stream and output, 1 - k, the commit with the last, all carrying the set's tag
 // (amp_out switches banks only on a whole set of one tag: audit R03). Commands leave one a
 // clock, about 60 clocks for a set - long before the next block can complete, 16 frames later.
+// A block goes through five steps, one a clock, so that 99 MHz holds: E1 the fields, E2 the
+// telegram, E3 decodes and compares, E4 the message, E5 what it does to each stream. The tables
+// take it with e5, 6 clocks after the block's last frame, and its first command leaves 2 later.
 // sim/ctrl_model.py is this module's model, frame for frame; sim/run_ctrl.py checks them.
 module ctrl_decode #(
     parameter AMP_FBLOCK = 8'h22,
@@ -89,6 +92,7 @@ module ctrl_decode #(
 );
 `include "gain_rom.vh"
     integer k;
+    integer kc;                             // the list check's own, so the clocked loops never wake it
 
     // ---------------------------------------------------------- the block, 32 bytes
     reg [7:0] blk [0:31];
@@ -177,79 +181,6 @@ module ctrl_decode #(
         end
     end
 
-    // ---------------------------------------------------------- E3: the messages
-    wire        is_amp  = fb == AMP_FBLOCK;
-    wire        is_jlr  = fb == JLR_FBLOCK;
-    wire        op_sr   = op == 4'h2 || op == 4'h6;                      // StartResult, StartResultAck
-    wire        op_sgs  = op == 4'h0 || op == 4'h2 || op == 4'hC;        // Set, SetGet, Status
-    wire        op_res  = op == 4'hC || op == 4'hD;                      // Result, ResultAck
-    wire        op_err  = op == 4'hF || op == 4'h9;                      // Error, ErrorAck
-    wire [7:0]  sink    = pd[0];
-    wire        sink13  = sink >= 8'd1 && sink <= 8'd3;
-    wire [1:0]  sidx    = sink[1:0] - 2'd1;                              // sink 1..3 -> stream 0..2
-    wire [7:0]  lsink   = pd[1];                                         // SpeakerLevel's sink
-    wire        lsink13 = lsink >= 8'd1 && lsink <= 8'd3;
-    wire [1:0]  lidx    = lsink[1:0] - 2'd1;
-    wire        f_conn  = valid && is_amp && fkt == 12'h111;
-    wire        f_sinfo = valid && is_amp && fkt == 12'h110 && op == 4'hC && plen >= 4'd5 && sink13;
-    // the channel list: after SinkNr, SrcDelay in a Connect; after SinkNr, DataType,
-    // Resolution, AudioChannels, SinkDelay in a SinkInfo
-    wire [3:0]  nch     = plen - 4'd2;
-    wire [3:0]  n_list  = f_sinfo ? plen - 4'd5 : nch;
-    wire [7:0]  cl [0:5];
-    assign cl[0] = f_sinfo ? pd[5]  : pd[2];
-    assign cl[1] = f_sinfo ? pd[6]  : pd[3];
-    assign cl[2] = f_sinfo ? pd[7]  : pd[4];
-    assign cl[3] = f_sinfo ? pd[8]  : pd[5];
-    assign cl[4] = f_sinfo ? pd[9]  : pd[6];
-    assign cl[5] = f_sinfo ? pd[10] : pd[7];
-    reg         chan_ok;                                                 // each 0..59, ascending
-    always @* begin
-        chan_ok = 1'b1;
-        for (k = 0; k < 6; k = k + 1)
-            if (k < n_list && (cl[k] > 8'd59 || (k > 0 && cl[k] <= cl[k - 1]))) chan_ok = 1'b0;
-    end
-    // the format: SinkInfo's tuple, or the two a Connect's list is taken for
-    wire        p_w3    = f_sinfo && pd[2] == 8'd3;                      // 24 bit
-    wire        p_mono  = f_sinfo ? pd[3] == 8'd1 : nch == 4'd2;
-    wire        res_ok  = !f_sinfo || pd[2] == 8'd2 || pd[2] == 8'd3;
-    wire        chn_ok  = f_sinfo ? (pd[3] == 8'd1 || pd[3] == 8'd2) : (nch == 4'd2 || nch == 4'd4);
-    wire [3:0]  need    = p_w3 ? (p_mono ? 4'd3 : 4'd6) : (p_mono ? 4'd2 : 4'd4);
-    wire        fmt_ok  = res_ok && chn_ok && chan_ok && (f_sinfo ? (pd[1] == 8'd0 && n_list == need) : 1'b1);
-    wire m_conn = f_conn && op_sr && plen >= 4'd4 && fmt_ok && sink13;
-    wire m_res  = f_conn && op_res && plen >= 4'd1 && sink13;
-    wire m_err  = f_conn && op_err;
-    wire m_sinfo = f_sinfo;
-    wire m_disc = valid && is_amp && fkt == 12'h112 && op_sr  && plen >= 4'd1 && sink13;
-    wire m_mute = valid && is_amp && fkt == 12'h113 && op_sgs && plen >= 4'd2 && sink <= 8'd3;
-    wire m_spk  = valid && is_amp && fkt == 12'h46D && op_sgs && plen >= 4'd3 && lsink13;
-    wire m_409  = valid && is_jlr && fkt == 12'h409 && op == 4'hC && plen >= 4'd3;
-    // the position's bytes: L the first Resolution channels, R the next ones of a stereo
-    wire [7:0]  b0 = cl[0] + 8'd1, b1 = cl[1] + 8'd1, b2 = cl[2] + 8'd1,
-                b3 = cl[3] + 8'd1, b4 = cl[4] + 8'd1, b5 = cl[5] + 8'd1;
-    wire [7:0]  nL2 = p_w3 ? b2 : 8'd0;
-    wire [7:0]  nR0 = p_mono ? 8'd0 : (p_w3 ? b3 : b2);
-    wire [7:0]  nR1 = p_mono ? 8'd0 : (p_w3 ? b4 : b3);
-    wire [7:0]  nR2 = (p_mono || !p_w3) ? 8'd0 : b5;
-    // the loudest speaker of a SpeakerLevel: the largest signed byte among pd[2 .. plen-1]
-    function [7:0] smax;
-        input [7:0] a, b;
-        begin smax = ($signed(a) > $signed(b)) ? a : b; end
-    endfunction
-    wire [7:0] v0 = (plen > 4'd2)  ? pd[2]  : 8'h80;
-    wire [7:0] v1 = (plen > 4'd3)  ? pd[3]  : 8'h80;
-    wire [7:0] v2 = (plen > 4'd4)  ? pd[4]  : 8'h80;
-    wire [7:0] v3 = (plen > 4'd5)  ? pd[5]  : 8'h80;
-    wire [7:0] v4 = (plen > 4'd6)  ? pd[6]  : 8'h80;
-    wire [7:0] v5 = (plen > 4'd7)  ? pd[7]  : 8'h80;
-    wire [7:0] v6 = (plen > 4'd8)  ? pd[8]  : 8'h80;
-    wire [7:0] v7 = (plen > 4'd9)  ? pd[9]  : 8'h80;
-    wire [7:0] v8 = (plen > 4'd10) ? pd[10] : 8'h80;
-    wire [7:0] v9 = (plen > 4'd11) ? pd[11] : 8'h80;
-    wire [7:0] m01 = smax(v0, v1), m23 = smax(v2, v3), m45 = smax(v4, v5), m67 = smax(v6, v7), m89 = smax(v8, v9);
-    wire [7:0] m03 = smax(m01, m23), m47 = smax(m45, m67);
-    wire [7:0] loudest = smax(smax(m03, m47), m89);
-
     // ---------------------------------------------------------- state
     reg        pos_on [0:2], pos_w3 [0:2], pos_mono [0:2], pos_pend [0:2], confirmed [0:2];
     reg [15:0] pos_dev [0:2];               // the device the position came from
@@ -259,6 +190,183 @@ module ctrl_decode #(
     reg        have_a, have_n, coef_pend;
     reg [7:0]  raw_a, raw_n;
     reg [7:0]  tag;                         // the coefficient set's tag, one more per set
+
+    // E3..E5: the match, the format check and the table write were one clock, 16 ns where the
+    // clock gives 10; they are three steps now, each registering what it works out. One block
+    // at a time is in them: a block completes at most once a frame (over 500 clocks; a telegram
+    // comes once in 16 frames), so the fields (E1) and the payload (E2) hold until the next
+    // block's done and the steps after read them as they are. The tables change only with e5
+    // (the sequencer only clears pos_pend, and a set here wins), so each step before reads them
+    // as the block before left them, as the one clock did, and the sequencer meets a message's
+    // whole new state at once, as before.
+
+    // ---------------------------------------------------------- E3: decodes and compares
+    wire        is_amp  = fb == AMP_FBLOCK;
+    wire        is_jlr  = fb == JLR_FBLOCK;
+    wire        op_sr   = op == 4'h2 || op == 4'h6;                      // StartResult, StartResultAck
+    wire        op_sgs  = op == 4'h0 || op == 4'h2 || op == 4'hC;        // Set, SetGet, Status
+    wire        op_res  = op == 4'hC || op == 4'hD;                      // Result, ResultAck
+    wire        op_err  = op == 4'hF || op == 4'h9;                      // Error, ErrorAck
+    wire [7:0]  sink    = pd[0];
+    wire        sink13  = sink >= 8'd1 && sink <= 8'd3;
+    wire [7:0]  lsink   = pd[1];                                         // SpeakerLevel's sink
+    wire        lsink13 = lsink >= 8'd1 && lsink <= 8'd3;
+    // the channel list: after SinkNr, SrcDelay in a Connect (pd[2..]); after SinkNr, DataType,
+    // Resolution, AudioChannels, SinkDelay in a SinkInfo (pd[5..])
+    wire [3:0]  nch     = plen - 4'd2;
+    wire [3:0]  nls     = plen - 4'd5;
+    // the loudest speaker of a SpeakerLevel: the largest signed byte among pd[2 .. plen-1], the
+    // same tree of pairs as before, one round a step (E3, E4, E5, and the last into lvl_db)
+    function [7:0] smax;
+        input [7:0] a, b;
+        begin smax = ($signed(a) > $signed(b)) ? a : b; end
+    endfunction
+    // the first round: a byte past plen counts as 0x80, the smallest; ga = plen > k and
+    // gb = plen > k + 1, so gb implies ga, and the gates only pick once the bytes are compared
+    function [7:0] pmax;
+        input [7:0] a, b;
+        input       ga, gb;
+        begin pmax = gb ? smax(a, b) : ga ? a : 8'h80; end
+    endfunction
+    reg        e3;
+    reg        c_conn, c_res, c_err, c_sinfo, c_disc, c_mute, c_spk, c_409;
+    reg [2:0]  sel, lsel, msel;             // one-hot: the sink's stream, SpeakerLevel's, Mute's
+    reg [10:2] hi, nup;                     // pd[j] > 59; pd[j] <= pd[j-1]
+    reg [5:0]  in_c, in_s;                  // list entry k is there: k < nch, k < nls
+    reg        s_pcm, s_res, s_w3, s_chn, s_mono;
+    reg [2:0]  dsrc, dtgt;                  // pos_dev[k] == src, == tgt
+    reg [7:0]  m01, m23, m45, m67, m89;
+    always @(posedge clk) begin
+        e3 <= e2 && !rst;
+        if (e2) begin
+            // the messages, all but the format of a Connect or a SinkInfo (E4)
+            c_conn  <= valid && is_amp && fkt == 12'h111 && op_sr  && plen >= 4'd4 && sink13;
+            c_res   <= valid && is_amp && fkt == 12'h111 && op_res && plen >= 4'd1 && sink13;
+            c_err   <= valid && is_amp && fkt == 12'h111 && op_err;
+            c_sinfo <= valid && is_amp && fkt == 12'h110 && op == 4'hC && plen >= 4'd5 && sink13;
+            c_disc  <= valid && is_amp && fkt == 12'h112 && op_sr  && plen >= 4'd1 && sink13;
+            c_mute  <= valid && is_amp && fkt == 12'h113 && op_sgs && plen >= 4'd2 && sink <= 8'd3;
+            c_spk   <= valid && is_amp && fkt == 12'h46D && op_sgs && plen >= 4'd3 && lsink13;
+            c_409   <= valid && is_jlr && fkt == 12'h409 && op == 4'hC && plen >= 4'd3;
+            for (k = 0; k < 3; k = k + 1) begin
+                sel[k]  <= (sink[1:0] == k + 1);                         // sink 1..3 -> stream 0..2 (every use has sink13)
+                lsel[k] <= (lsink[1:0] == k + 1);                        // SpeakerLevel's (every use has lsink13)
+                msel[k] <= (sink == 8'd0 || sink == k + 1);              // Mute's: sink 0 is all
+                dsrc[k] <= (pos_dev[k] == src);                          // an answer's device is its source,
+                dtgt[k] <= (pos_dev[k] == tgt);                          // a request's its target
+            end
+            // the channel lists byte by byte: each 0..59, each above the one before
+            for (k = 2; k <= 10; k = k + 1) begin
+                hi[k]  <= (pd[k] > 8'd59);
+                nup[k] <= (pd[k] <= pd[k - 1]);
+            end
+            for (k = 0; k < 6; k = k + 1) begin
+                in_c[k] <= (k < nch);
+                in_s[k] <= (k < nls);
+            end
+            // a SinkInfo's tuple: PCM, 2 or 3 bytes a sample, 1 or 2 channels
+            s_pcm  <= pd[1] == 8'd0;
+            s_res  <= pd[2] == 8'd2 || pd[2] == 8'd3;
+            s_w3   <= pd[2] == 8'd3;                                     // 24 bit
+            s_chn  <= pd[3] == 8'd1 || pd[3] == 8'd2;
+            s_mono <= pd[3] == 8'd1;
+            m01 <= pmax(pd[2],  pd[3],  plen > 4'd2,  plen > 4'd3);
+            m23 <= pmax(pd[4],  pd[5],  plen > 4'd4,  plen > 4'd5);
+            m45 <= pmax(pd[6],  pd[7],  plen > 4'd6,  plen > 4'd7);
+            m67 <= pmax(pd[8],  pd[9],  plen > 4'd8,  plen > 4'd9);
+            m89 <= pmax(pd[10], pd[11], plen > 4'd10, plen > 4'd11);
+        end
+    end
+
+    // ---------------------------------------------------------- E4: the message
+    // Both lists are checked and the message takes its own: Connect and SinkInfo have different
+    // FktIDs, so a Connect meets the Connect's verdict and a SinkInfo its own, as the one-clock
+    // cl[] picked them by f_sinfo.
+    reg         chan_c, chan_s;
+    always @* begin
+        chan_c = 1'b1;
+        chan_s = 1'b1;
+        for (kc = 0; kc < 6; kc = kc + 1) begin
+            if (in_c[kc] && (hi[2 + kc] || (kc > 0 && nup[2 + kc]))) chan_c = 1'b0;
+            if (in_s[kc] && (hi[5 + kc] || (kc > 0 && nup[5 + kc]))) chan_s = 1'b0;
+        end
+    end
+    // the format: SinkInfo's tuple, or the two a Connect's list is taken for
+    wire [3:0]  need    = s_w3 ? (s_mono ? 4'd3 : 4'd6) : (s_mono ? 4'd2 : 4'd4);
+    wire        fmt_c   = (nch == 4'd2 || nch == 4'd4) && chan_c;
+    wire        fmt_s   = s_res && s_chn && chan_s && s_pcm && nls == need;
+    wire        p_w3    = c_sinfo && s_w3;
+    wire        p_mono  = c_sinfo ? s_mono : nch == 4'd2;
+    // the position's bytes: L the first Resolution channels, R the next ones of a stereo
+    wire [7:0]  cl [0:5];
+    assign cl[0] = c_sinfo ? pd[5]  : pd[2];
+    assign cl[1] = c_sinfo ? pd[6]  : pd[3];
+    assign cl[2] = c_sinfo ? pd[7]  : pd[4];
+    assign cl[3] = c_sinfo ? pd[8]  : pd[5];
+    assign cl[4] = c_sinfo ? pd[9]  : pd[6];
+    assign cl[5] = c_sinfo ? pd[10] : pd[7];
+    wire [7:0]  b0 = cl[0] + 8'd1, b1 = cl[1] + 8'd1, b2 = cl[2] + 8'd1,
+                b3 = cl[3] + 8'd1, b4 = cl[4] + 8'd1, b5 = cl[5] + 8'd1;
+    reg         e4;
+    reg         m_conn, m_res, m_err, m_sok, m_sbad, m_disc, m_mute, m_spk, m_409, hit_m;
+    reg         w3_n, mono_n;
+    reg  [7:0]  nb [0:5];                   // the new position: L0 L1 L2 R0 R1 R2
+    reg  [15:0] dev_n;
+    reg  [7:0]  m03, m47, m89_4;
+    always @(posedge clk) begin
+        e4 <= e3 && !rst;
+        if (e3) begin
+            m_conn <= c_conn && fmt_c;
+            m_sok  <= c_sinfo && fmt_s;                                  // the device's word on its sink
+            m_sbad <= c_sinfo && !fmt_s;                                 // any other: nothing is known
+            m_res  <= c_res;
+            m_err  <= c_err;
+            m_disc <= c_disc;
+            m_mute <= c_mute;
+            m_spk  <= c_spk;
+            m_409  <= c_409;
+            hit_m  <= (c_conn && fmt_c) || c_res || c_err || c_sinfo || c_disc || c_mute || c_spk || c_409;
+            w3_n   <= p_w3;
+            mono_n <= p_mono;
+            nb[0]  <= b0;
+            nb[1]  <= b1;
+            nb[2]  <= p_w3 ? b2 : 8'd0;
+            nb[3]  <= p_mono ? 8'd0 : (p_w3 ? b3 : b2);
+            nb[4]  <= p_mono ? 8'd0 : (p_w3 ? b4 : b3);
+            nb[5]  <= (p_mono || !p_w3) ? 8'd0 : b5;
+            dev_n  <= c_conn ? tgt : src;                                // a Connect is a request, a SinkInfo an answer
+            m03    <= smax(m01, m23);
+            m47    <= smax(m45, m67);
+            m89_4  <= m89;
+        end
+    end
+
+    // ---------------------------------------------------------- E5: what it does to each stream
+    reg         e5;
+    reg  [2:0]  set_s, off_s, cnf_s, mute_s, lvl_s;
+    reg         coef_s, a409_s, n409_s;
+    reg  [7:0]  m07, m89_5;
+    always @(posedge clk) begin
+        e5 <= e4 && !rst;
+        if (e4) begin
+            for (k = 0; k < 3; k = k + 1) begin
+                set_s[k]  <= (m_conn || m_sok) && sel[k];
+                off_s[k]  <= (m_sbad && sel[k] && (!pos_on[k] || dsrc[k])) ||        // nothing known any more
+                             (m_disc && sel[k] && (!pos_on[k] || dtgt[k])) ||        // DisConnect from its device
+                             (m_err && pos_on[k] && !confirmed[k] && dsrc[k]);       // the device turned it down
+                cnf_s[k]  <= m_res && sel[k] && pos_on[k] && dsrc[k];                // the device's Result
+                mute_s[k] <= m_mute && msel[k];
+                lvl_s[k]  <= m_spk && lsel[k];
+            end
+            coef_s <= m_mute || m_spk || m_409;
+            a409_s <= m_409;
+            n409_s <= m_409 && plen >= 4'd9;
+            m07    <= smax(m03, m47);
+            m89_5  <= m89_4;
+        end
+    end
+    wire [7:0]  loudest = smax(m07, m89_5);                             // the last round, straight into lvl_db
+
     // the gain of stream gs (see the header), one lookup in each table
     reg  [1:0]  gs;
     wire        n_first = gs != 2'd0 && have_n;                          // streams 1, 2: 0x409 byte 8 before the volume
@@ -348,56 +456,40 @@ module ctrl_decode #(
                 default: st <= S_IDLE;
             endcase
 
-            // ---- the telegram just classified (a request set here wins over a clear above)
-            if (e2) begin
+            // ---- the block's message, all of it in this one clock (a request set here wins over
+            // a clear above); the messages exclude each other, so at most one kind acts
+            if (e5) begin
                 tel <= valid;
-                hit <= m_conn | m_res | m_err | m_sinfo | m_disc | m_mute | m_spk | m_409;
-                if (m_conn || (m_sinfo && fmt_ok)) begin
-                    pos_on[sidx]   <= 1'b1;
-                    pos_w3[sidx]   <= p_w3;
-                    pos_mono[sidx] <= p_mono;
-                    pos_b[6 * sidx + 0] <= b0;
-                    pos_b[6 * sidx + 1] <= b1;
-                    pos_b[6 * sidx + 2] <= nL2;
-                    pos_b[6 * sidx + 3] <= nR0;
-                    pos_b[6 * sidx + 4] <= nR1;
-                    pos_b[6 * sidx + 5] <= nR2;
-                    pos_dev[sidx]   <= m_conn ? tgt : src;               // a request's device is its target
-                    confirmed[sidx] <= m_sinfo;                          // the device's own word is confirmed
-                    pos_pend[sidx]  <= 1'b1;
+                hit <= hit_m;
+                for (k = 0; k < 3; k = k + 1) begin
+                    if (set_s[k]) begin
+                        pos_on[k]        <= 1'b1;
+                        pos_w3[k]        <= w3_n;
+                        pos_mono[k]      <= mono_n;
+                        pos_b[6 * k + 0] <= nb[0];
+                        pos_b[6 * k + 1] <= nb[1];
+                        pos_b[6 * k + 2] <= nb[2];
+                        pos_b[6 * k + 3] <= nb[3];
+                        pos_b[6 * k + 4] <= nb[4];
+                        pos_b[6 * k + 5] <= nb[5];
+                        pos_dev[k]       <= dev_n;
+                        confirmed[k]     <= m_sok;                       // the device's own word is confirmed
+                        pos_pend[k]      <= 1'b1;
+                    end
+                    if (off_s[k]) begin
+                        pos_on[k]   <= 1'b0;
+                        pos_pend[k] <= 1'b1;
+                    end
+                    if (cnf_s[k]) confirmed[k] <= 1'b1;
+                    if (mute_s[k]) muted[k] <= pd[1][0];
+                    if (lvl_s[k]) begin
+                        lvl_db[k]  <= loudest;
+                        have_db[k] <= 1'b1;
+                    end
                 end
-                if (m_sinfo && !fmt_ok && (!pos_on[sidx] || pos_dev[sidx] == src)) begin
-                    pos_on[sidx]   <= 1'b0;                              // nothing is known about the sink any more
-                    pos_pend[sidx] <= 1'b1;
-                end
-                if (m_disc && (!pos_on[sidx] || pos_dev[sidx] == tgt)) begin
-                    pos_on[sidx]   <= 1'b0;
-                    pos_pend[sidx] <= 1'b1;
-                end
-                if (m_res && pos_on[sidx] && pos_dev[sidx] == src)
-                    confirmed[sidx] <= 1'b1;
-                if (m_err)
-                    for (k = 0; k < 3; k = k + 1)
-                        if (pos_on[k] && !confirmed[k] && pos_dev[k] == src) begin
-                            pos_on[k]   <= 1'b0;                         // the device turned the Connect down
-                            pos_pend[k] <= 1'b1;
-                        end
-                if (m_mute) begin
-                    for (k = 0; k < 3; k = k + 1)
-                        if (sink == 8'd0 || sink == k + 1) muted[k] <= pd[1][0];
-                    coef_pend <= 1'b1;
-                end
-                if (m_spk) begin
-                    lvl_db[lidx]  <= loudest;
-                    have_db[lidx] <= 1'b1;
-                    coef_pend <= 1'b1;
-                end
-                if (m_409) begin
-                    raw_a  <= pd[2];
-                    have_a <= 1'b1;
-                    if (plen >= 4'd9) begin raw_n <= pd[8]; have_n <= 1'b1; end
-                    coef_pend <= 1'b1;
-                end
+                if (coef_s) coef_pend <= 1'b1;
+                if (a409_s) begin raw_a <= pd[2]; have_a <= 1'b1; end
+                if (n409_s) begin raw_n <= pd[8]; have_n <= 1'b1; end
             end
         end
     end

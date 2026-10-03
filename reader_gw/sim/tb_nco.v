@@ -20,11 +20,13 @@ module tb_nco;
 
     reg        fev = 0, lk = 0;
     reg [31:0] fet = 0;
+    reg        fes = 0, lkn = 0;            // an edge is announced: fev, fet and lk follow next clock
+    reg [31:0] fen = 0;                     // its time, a clock early (fe_next)
     wire       run, tick, per_ok, rate48;
     wire [2:0] sub;
     wire [9:0] phase_n;
     wire [31:0] per, err_last;
-    nco_frame u (.clk(clk), .rst(rst), .wc(wc), .locked(lk), .fe_valid(fev), .fe_rise(1'b1), .fe_t(fet),
+    nco_frame u (.clk(clk), .rst(rst), .wc(wc), .locked(lk), .fe_valid(fev), .fe_rise(1'b1), .fe_t(fet), .fe_next(fen),
                  .run(run), .tick(tick), .sub(sub), .phase_n(phase_n), .per(per), .per_ok(per_ok),
                  .rate48(rate48), .err_last(err_last));
 
@@ -49,11 +51,15 @@ module tb_nco;
         repeat (4) @(posedge clk);
         rst = 0;
         i = 0;
-        while (i < ne) begin
+        // each edge is announced a clock before it is delivered: the receiver puts a UI 0's time
+        // out on fe_next a clock before fe_valid brings it on fe_t (delivery is unchanged)
+        while (i < ne || fes) begin
             @(negedge clk);
-            fev = 0;
-            if ($signed(now - et[i] - DELAY) >= 0) begin
-                fev = 1; fet = et[i]; lk = el[i][0];
+            fev = fes;
+            if (fes) begin fet = fen; lk = lkn; end
+            fes = 0;
+            if (i < ne && $signed(now - et[i] - (DELAY - 8)) >= 0) begin
+                fes = 1; fen = et[i]; lkn = el[i][0];
                 i = i + 1;
             end
         end
