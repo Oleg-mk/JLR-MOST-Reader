@@ -19,9 +19,9 @@ kicad-cli sch erc ...                0 errors, 0 warnings (check_all.py runs it)
 | 1 Живлення | J4 battery in, F1, D2 SMBJ36A, D1, L2 and the input capacitors; U5 TPS7B8133 always-on 3.3 V (3V3_AON); U6 LMR38020 buck to 5V_SW, enabled by WAKE | unchanged, less U10 and 5V_HOST (no ESP32) |
 | 2 Пробудження | U4 74LVC1G123: every RX edge restarts 0.1 s, the ring asleep turns the buck off | unchanged, less U11 (no bypass to watch: the bypass is wire) |
 | 3 Кільце | J1 the TE MOST FOT header with its ferrites and Rext; R1, U1 74LVC1G34, R7; U1's output is the ring's TX through R2 and RX_BUF for U4 and U3 | less U2 (the mux), R9, C11 |
-| 4 Розв'язка | U3 74LVC1G125 on 3V3_SW: RX_BUF into the FPGA, Ioff when the module is off | less U9 (the retiming flip-flop) |
-| 5 FPGA | M1 Tang Nano 20K: RX_IN on pin 27 (IDES8), SPDIF_F on pin 42 (OSER8), 5 V through D3 with C63/C64, 3V3_SW out | 2 signals of the listener's 24 |
-| 6 Вихід | J6 PLT133/T10W through R28, fed from 3V3_SW with C31/C32 | the T10 transmitter of block 9, no coax |
+| 4 Розв'язка | U3 74LVC1G125 on 3V3_SW: RX_BUF into the FPGA, Ioff while the FPGA is not running | less U9 (the retiming flip-flop) |
+| 5 FPGA | M1 Tang Nano 20K: RX_IN on pin 27 (IDES8), SPDIF_F on pin 42 (OSER8), 3V3_SW from pin 16 held high, 5 V through D3 with C63/C64/C85 | 2 signals of the listener's 24 |
+| 6 Вихід | J6 PLT133/T10W through R28, fed from 3V3_SW (3 mA, 10 at most) with C31/C32 | the T10 transmitter of block 9, no coax |
 | 7 Тестові точки | TP6 3V3_AON, TP7 5V_SW, TP9 GND | unchanged |
 | 0 Про плату | the notes: what the board is and what is not on it | new |
 
@@ -49,10 +49,10 @@ listener's block 9 wanted a regulator of its own for.
 netlist: every part's place and the reason in its table (`PLACE`), the outline, four M3
 holes, ground pours on both sides, the net classes (Default 0.25 mm, Rail 0.35 mm for the
 3.3 V rails, Power 0.6 mm for the battery path and 5 V) and the project's DRC rule
-(`most_reader.kicad_dru`, one thermal spoke). From then on `most_reader.kicad_pcb` belongs to
-the PCB editor: the user places and routes by hand, and the script refuses to overwrite the
-file unless run with `--fresh`, which discards every track. Sheet changes reach the board
-through Tools > Update PCB from Schematic.
+(`most_reader.kicad_dru`, one thermal spoke). The copper was drawn on that layout afterwards,
+and from then on `most_reader.kicad_pcb` belongs to the PCB editor: the script refuses to
+overwrite the file unless run with `--fresh`, which discards every track. Sheet changes
+reach the board through Tools > Update PCB from Schematic.
 
 ```text
 "%LOCALAPPDATA%\Programs\KiCad\10.0\bin\python.exe" reader_hw\gen_reader_pcb.py [--fresh]
@@ -61,16 +61,68 @@ python tools/check_board.py          DRC with the parity check: no violation, no
                                      has begun
 ```
 
-The initial layout, 106 x 90 mm, keeps the listener's geometry where the parts are the same:
-J1 on the left edge with its optical face past it, the FOT cluster between J1's pins and M1's
-left header (RX_IN enters at M1's pin 8, U3 beside it), M1 upright in the middle with the
-USB-C at the top edge, the battery input on the left edge under J1 (fibre and power leave
-through one face) and the buck along the bottom. New here: D3 with C63/C64 at M1's 5 V pin,
-and J6 on the top edge under M1's SPDIF pin, with R28, C31, C32. The right half is empty where
-the ESP32 and the digital audio sat, so the board is for compacting by hand; the module's
-3D view shows only its pin headers (soldered in, no sockets).
+The layout is this board's own, 77.54 x 55.55 mm, not the listener's cut down. The user re-placed
+it several times on 2026-10-03 (12:22; 13:33 with three more ceramics; 14:03 with the cap row, U5,
+C1, L2, D1 and M1 moved left, and everything right of M1 following M1 by 2.464 mm; 15:46 and
+17:37, the FOT's parts and the knot aligned, C83 to the input) and cut 6.45 mm off the top; from then on the board is the master and `PLACE` is read back off it. J1 sits on the left edge,
+its optical face past the edge; J4 below it with its face flush with the edge, so the car's two
+cables, fibre and power, leave through one face. The FOT's parts sit in rows on J1's pins
+(TXVCC on pin 3 with RGAIN under it, RXVCC on pin 5 with C10 and C18), R2 over U1 and U3,
+the column C17, R7, R1, C8 at x 23.6 and U4 with C9 and R6 under them. The battery input runs
+along the bottom left (F1, D1 and L2 from J4, D2 under J4, C44 on the bottom edge). M1 stands
+upright in the middle with its USB-C at the top edge and its HDMI end past the bottom one. On
+the right are D3 with C64, C85 and C63 at M1's 5 V pin, R28 and J6 on the right edge, and the
+buck with C45 under it. The module's 3D view shows only its pin headers (soldered in, no
+sockets).
+
+The user's ceramics, each 100 nF: C83 (100 V) across the input behind F1, beside D2; C84
+(100 V) on the VBAT_P riser between C45 and the buck, across the electrolytic; C85 on 5V_SW
+beside C64. TP10 is a second ground test point beside TP6.
+
+3V3_SW, the supply of U3 and J6, comes from module pin 7, FPGA pin 16 (LED1) held high by the
+gateware: U3 takes microamps and J6 3 mA, 10 at most (PLT133). The module's own 3.3 V pins (19,
+36) sit at its bottom, and their line up to U3 and J6 had to cross /WAKE with a jumper; pin 7
+sits above /WAKE, so nothing crosses it (the user's idea). Pin 16 is in bank 6 with the LEDs
+alone, away from the crystal's bank and the two serdes pins'. LED1 stays dark.
+
+The routing follows the listener's scheme: the top carries every signal and supply, the bottom
+is one ground plane, the top's ground pour is stitched to it every 6 mm and every SMD ground
+pad has its own via. There is no jumper: the bottom is one unbroken ground plane with nothing
+but vias in it. The third round followed the user's sketch (the RXVCC row in one line, RX_BUF
+straight from R2 down to U1, 3V3_AON up a channel under R1 and R7, U4's ground onto C8's via)
+and took two of three jumpers away; 3V3_SW from pin 7 took the last, /WAKE's.
+No signal track comes within 3.5 mm of a mounting hole's centre, so an M3 head, washer or
+standoff sits on ground copper only: TXD bends away from H1 and S/PDIF goes round H2.
+
+- **The ring.** RXD runs 4 mm from J1 to R1 and U1. U1's output goes straight up to R2, the
+  source resistor, and TXD runs up a lane at x 28.3 to J1's pin 1 (21 mm, point to point,
+  nothing hanging on it). RX_BUF goes from U1 through U1's and U3's bodies to U3 and on as
+  RX_IN to the FPGA's pin 27 (8 mm). Its branch to U4 runs west under C18's and C10's bodies,
+  out between J1's pins 5 and 6 and down the pins' far side; RX_BUF is 31 mm in all, most of
+  it that branch.
+- **3V3_AON** leaves U5 west along y 37.6 past TP6, runs under J1's body west of its pins and
+  comes in between pins 4 and 5 to FB2, and on under C20's body, between its pads, to FB1. In
+  the knot it rises from C8 up the channel at x 23.7 to C17 and U1; U4 takes it straight from
+  the trunk.
+- **3V3_SW** leaves module pin 7 west to C12 and U3, and east across the module's inside to J6
+  with C31 and C32 on stubs. **/WAKE** crosses the module below it, on top, to the right side
+  and along y 30.3 into U6's EN.
+- **VBAT_P** goes from L2 down to C44, under the module's lower end along y 60.1, up
+  its right side at x 58.1 past C45 and C84 to C43, C4 and U6. L2's top end feeds U5's input
+  pins from below, and the cap row hangs on them.
+- **The buck.** C4 straddles VIN and GND right over U6; C43 on the VBAT_P line beside it; RT
+  and FB short on U6's left; BOOT and SW straight down into C6 and L1; R4 senses at C7; TP7 on
+  a stub from C7; the 5 V goes round L1's foot, up the right edge into C63 and along the top to
+  C85, C64 and D3.
+- **Widths.** Power 0.6 mm (0.3 into U5's 0.65 mm pins), Rail 0.35, signals 0.25, 0.2
+  through the bodies of U1, U3 and U4.
+
+Checks on the routed board: DRC 0 violations with the schematic parity check, 0 unconnected
+items, no silkscreen overlaps (the only silk finding is J4's library outline at the board
+edge, as on the listener). Tracks run 558 mm, all on the top; 155 vias, all of them ground. `gen_reader_pcb.py --fresh` on a copy lays every part where the board has
+it.
 
 ## Next
 
-The user's placement and routing; then `make_fab.py` in the listener's manner for the
-manufacturing package.
+`make_fab.py` in the listener's manner for the manufacturing package; then the order, bring-up on
+the bench and the car.

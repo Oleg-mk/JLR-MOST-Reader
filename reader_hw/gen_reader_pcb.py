@@ -6,33 +6,32 @@ Run with KiCad's own Python (it carries the pcbnew module):
 It exports the netlist of most_reader.kicad_sch with kicad-cli, loads every footprint from the
 project library or KiCad's, places each part where PLACE says, gives every pad its net, draws
 the outline, the mounting holes and the ground pours, and writes most_reader.kicad_pcb (net
-classes go to most_reader.kicad_pro). The copper is routed by hand in KiCad: this file lays
-the parts out once, and from then on most_reader.kicad_pcb belongs to the PCB editor - the
-script refuses to overwrite it unless it is run with --fresh, which lays the parts out again
+classes go to most_reader.kicad_pro). It lays the parts out only: the copper was drawn on
+this layout afterwards (by hand, as coordinates), and from then on most_reader.kicad_pcb
+belongs to the PCB editor - the script refuses to overwrite it unless it is run with --fresh, which lays the parts out again
 from PLACE and discards every track. Changes of the sheet reach the board through the editor
 (Tools > Update PCB from Schematic), not through this file.
 
-Taken from MOST25-to-AUDIO's gen_listener_pcb.py. J1 and M1 keep the listener's positions
-(J1's pins at x 18.87, M1's left header at x 41.84: the FOT cluster between them is laid out
-as there, less the parts that went), so does the battery input and the buck along the bottom;
-the right half, which carried the ESP32 and the digital audio there, holds only D3 with its
-capacitors, the TOSLINK transmitter on the top edge and the test points. It is an initial
-layout to be compacted by hand: the user places and routes.
-
-Two layers, 106 x 90 mm, origin at the top left, y down. What sits where, and why:
-  left edge    J1, the MOST header, its optical face 3.6 mm past the edge; the FOT cluster
-               (U1 U3 U4 U5 and their parts) between J1's pins (x 18.9) and M1's left header
-               (x 41.8), which carries RX_IN
-  middle       M1, the Tang Nano, USB-C at the top edge, the HDMI end at the bottom (its
-               overhang inside the board); the board under the module is free for tracks,
-               only its two pin columns are not
-  top right    D3 at M1's 5 V pin with C63/C64; J6, the TOSLINK transmitter, on its front
-               foot at the top edge (the port 2.6 mm past it) with R28, C31, C32 beside it,
-               under M1's SPDIF pin
-  bottom       the battery input at the left - J4 on the left edge under J1, so the car's two
-               cables, fibre and power, leave through one face, then F1 D2 D1 L2 and the
-               electrolytics - the buck right of them, its 5 V test point and the ground one
-  corners      four M3 holes
+Laid out afresh for this board, not from the listener's (its ESP32 and digital audio filled a
+right half this board does not have); the user then re-placed it (2026-10-03 12:22; 13:33 with three
+more ceramics; 14:03 with the cap row, U5, C1, L2, D1 and M1 moved left, the part right of M1 following M1
+by 2.464 mm) and PLACE now holds that placement, read back off the routed board. The top carries signals and supplies, the
+bottom is the ground plane. Two layers, 77.54 x 55.55 mm: x 0..W (77.536), y TOP (6.45)..62, y down.
+What sits where:
+  left edge    J1, the MOST header, its optical face past the edge; J4, the battery input,
+               below it with its face flush with the edge - fibre and power leave one face
+  x 22..30     the FOT's parts packed against J1's pins: TXVCC/RGAIN rows (R3, R42, C19),
+               FB2 | C20 | FB1, the RXVCC row (C10, C18), R2 over C12, U1 and U3 side by
+               side, the column C17, R7, R1, C8 at x 23.6, U4 with C9 and R6 under them
+  x 21..33     the cap row on the VBAT_P bus at y 40.3 into U5 (3V3_AON) with C3; C1 under
+               it; the battery input lower: F1, D1, L2 from J4, D2 and C44 (C83 beside it) at the bottom;
+               TP6 (3V3_AON) and TP10 (GND) left of the row
+  middle       M1, the Tang Nano, USB-C at the cut top edge, its HDMI end past the bottom
+               edge; under the module only tracks
+  right        D3, C64, C85, C63 at M1's 5 V pin; H2 between M1 and J6; R28 and J6 (TOSLINK) at
+               the SPDIF pin, C31/C32 at J6's lower left; the buck: C43/C4 over U6's input pins, U6,
+               R31/R5/R4 at its left, C6, L1 with C7, TP7/C84/TP9 left of C7, C45 under the buck
+  holes        H1 4 mm under the top edge between J1 and M1, H2 right of M1, H3/H4 low corners
 Rotation is KiCad's: degrees counterclockwise on screen. For a two-pad part at 0 deg pad 1
 is on the left; at 90 deg pad 1 is at the bottom, at 270 at the top.
 """
@@ -51,39 +50,42 @@ PROJECT = "most_reader"
 LIB = "most_reader"
 KICAD_BIN = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "KiCad" / "10.0" / "bin"
 KICAD_FP = KICAD_BIN.parent / "share" / "kicad" / "footprints"
-W, H = 106.0, 90.0
+W, H = 77.536, 62.0  # 80 until 2026-10-03 14:03, when the part right of M1 moved left with it
+TOP = 6.45          # the top edge, cut on 2026-10-03 ("зверху є що видалити"): 77.54 x 55.55 mm
 
 # ref: (x, y, rotation). All parts on the top side.
 PLACE = {
-    # ---- J1 and the FOT cluster (blocks 3, 4); J1's pins at x 18.87, y 30.45 (TXD) .. 49.55 (RXD)
-    "J1": (11.8, 40.0, 90),
-    "U3": (37.5, 23.5, 0), "C12": (34.0, 23.5, 0),                               # RX_IN gate at M1 pin 8
-    "R2": (23.5, 30.5, 0),                                                       # TX: U1's output back to J1
-    "C19": (23.5, 34.0, 0), "C20": (27.5, 34.0, 0), "R3": (23.5, 36.8, 0), "FB2": (27.5, 36.8, 0),
-    "R42": (31.5, 36.8, 0),
-    "C10": (23.5, 41.5, 0), "C18": (27.5, 41.5, 0), "FB1": (27.5, 44.5, 0),
-    "C17": (27.5, 47.2, 0), "R1": (23.5, 50.3, 0), "U1": (27.5, 50.3, 0),
-    "R7": (23.5, 53.0, 0),
-    "U4": (28.0, 57.0, 0), "R6": (32.5, 57.0, 180), "C9": (32.5, 59.6, 0), "C8": (28.5, 60.5, 0),
-    "U5": (30.0, 64.0, 0), "C3": (34.0, 64.0, 0), "TP6": (38.0, 64.0, 0),          # 3V3_AON LDO
-    # ---- the module
-    "M1": (52.0, 30.0, 0),
-    # ---- top right: 5 V into the module, the TOSLINK transmitter
-    "D3": (67.8, 5.5, 0),                                                          # 5V_SW -> M1 pin 21
-    "C63": (74.0, 11.5, 0), "C64": (67.5, 15.5, 0),                              # under D3, clear of M1's header
-    "J6": (84.5, 8.5, 180), "R28": (78.5, 15.0, 90), "C31": (84.5, 15.0, 0), "C32": (89.0, 15.0, 0),
-    # ---- power (block 1), left to right along the bottom
-    "J4": (8.92, 70.0, 90),                                # J4 face flush with the left edge
-    "F1": (22.5, 78.0, 0), "D2": (27.0, 84.0, 270), "D1": (31.0, 78.0, 180), "L2": (40.0, 78.0, 0),
-    "C1": (47.5, 70.5, 0), "C2": (51.5, 70.5, 0),
-    "C44": (51.5, 78.5, 0), "C46": (51.5, 86.5, 0), "C45": (65.5, 78.5, 0), "C47": (65.5, 86.5, 0),
-    "C82": (58.5, 86.5, 0),
-    "C4": (74.4, 75.4, 90), "C43": (74.4, 80.5, 90), "U6": (80.0, 76.0, 0), "R31": (77.5, 81.0, 0),
-    "C6": (85.5, 74.5, 90), "L1": (90.0, 76.0, 0), "C7": (95.7, 76.0, 90), "TP7": (100.5, 76.0, 0),
-    "R5": (84.5, 80.5, 0), "R4": (84.5, 83.0, 0),
-    "TP9": (94.5, 84.0, 0),                                                      # clear of the corner hole
+    # The user's placement of 2026-10-03 (saved 12:22, revised 13:33 with C83/C84/C85, 14:03, 15:46 and 17:37), read back off the routed
+    # board; the board is the master.
+    # ---- J1 and the FOT's parts (block 3): J1's pins at x 18.87, y 10.45 (1 TXD) .. 29.55 (8 RXD); TXVCC/RGAIN
+    # rows (R3, R42, C19), FB2 | C20 | FB1, RXVCC row (C10, C18), R2 over C12, U1 and U3 side by side
+    "J1": (11.8, 20, 90), "R3": (22.936, 16.332, 270), "R42": (24.613, 16.358, 270), "C19": (26.949, 16.345, 270),
+    "FB2": (22.936, 19.609, 270), "C20": (24.892, 19.837, 270), "FB1": (26.975, 20.955, 270),
+    "C10": (22.936, 23.622, 270), "C18": (24.892, 23.419, 270), "R2": (28.677, 22.403, 90),
+    "C12": (29.947, 25.629, 90), "U1": (26.899, 28.905, 90), "U3": (29.693, 28.905, 90),
+    # ---- the column at x 23.6 (C17, R7, R1, C8), U4 with C9 and R6 at its right
+    "C17": (23.698, 26.467, 180), "R7": (23.685, 28.042, 180), "R1": (23.686, 29.616, 0), "C8": (23.698, 31.191, 180),
+    "U4": (25.146, 33.237, 0), "C9": (28.346, 32.995, 270), "R6": (30.074, 32.995, 270),
+    # ---- the cap row on the VBAT_P bus at y 40.3 into U5 (3V3_AON), C3 at its output, C1 under the row
+    "C46": (21.539, 39.522, 90), "C2": (23.241, 39.535, 90), "C47": (24.943, 39.548, 90), "C82": (27.737, 39.548, 90), "U5": (29.953, 39.395, 90),
+    "C3": (32.106, 39.548, 270), "C1": (22.403, 43.51, 270), "TP6": (17.805, 38.125, 0), "TP10": (17.805, 43.18, 0),
+    # ---- the module: USB-C at the top edge; pads 1..20 at x 35.34, 21..40 at x 55.66, y 9.83 .. 58.09
+    "M1": (45.491, 33.96, 0),
+    # ---- block 1, the battery input: J4's face flush with the left edge; F1, D1, L2; D2 and C44 under them
+    "J4": (8.92, 47, 90), "F1": (14.503, 47, 0), "D1": (20.472, 48.158, 180), "L2": (28.505, 45.542, 0),
+    "D2": (10.008, 57.328, 270), "C44": (20.38, 55.575, 180), "C83": (12.954, 51.549, 90),     # C83: the input's ceramic, behind F1
+    # ---- right: D3/C64/C63 at M1's 5 V pin, R28 and J6 at the SPDIF pin, C32/C31
+    "D3": (59.487, 11.811, 270), "C64": (62.839, 9.779, 90), "C85": (66.141, 9.792, 90), "C63": (71.836, 11.5, 180), "R28": (65.1, 16.828, 270),
+    "J6": (68.776, 20.5, 90), "C32": (66.116, 27.026, 0), "C31": (65.125, 24.054, 90),
+    # ---- the buck (block 1): U6 with VIN, EN, RT up and SW, BOOT, FB down; C45, the second electrolytic, under it
+    "C43": (65.38, 32.233, 90), "C4": (69.466, 32.1, 0), "R31": (65.379, 35.345, 90), "U6": (69.036, 37.6, 270),
+    "R5": (65.379, 39.865, 90), "R4": (65.405, 42.926, 90), "C6": (70.32, 42.291, 0), "C7": (64.536, 46.8, 270),
+    "L1": (69.736, 46.5, 180), "C45": (63.948, 55.55, 0), "TP7": (61.036, 43.231, 0), "TP9": (61.061, 48.285, 0),
+    "C84": (61.048, 45.72, 0),                                                                  # C84: ceramic for C45
 }
-HOLES = [(4.0, 4.0), (W - 4.0, 4.0), (4.0, H - 4.0), (W - 4.0, H - 4.0)]
+# H1/H2 where the user put them (H1 4 mm under the cut top edge), H4 0.6 mm right of the corner spot to clear C45;
+# H2 and H4 moved with the right part
+HOLES = [(29.65, 10.45), (61.239, 20.396), (4.0, H - 4.0), (W - 3.4, H - 4.0)]
 # nets that carry current: 0.6 mm tracks; the 3.3 V rails 0.35 mm (tens of mA, and 0.6 mm cannot
 # pass between a module's pins); the rest 0.25 mm
 POWER = {"GND", "VBAT_P", "5V_SW", "Net-(J4-VBAT)", "Net-(D1-A)", "Net-(D1-K)", "Net-(D3-K)",
@@ -99,9 +101,11 @@ RULES = """(version 1)
 # parts whose reference stays where the footprint puts it (big enough to carry it), and the
 # few whose default spot lands on a neighbour: their reference goes here instead
 BIG = {"M1", "J1", "J4", "J6", "C44", "C45", "L1", "L2", "D1", "D2", "D3", "U6"}
-REFPOS = {"J6": (84.5, 7.0)}
+REFPOS = {"J6": (73.536, 24.5), "D1": (16.298, 48.933), "D3": (58.687, 11.811), "L1": (69.736, 44.1),
+          "M1": (45.496, 8.0), "J1": (9.5, 36.2), "J4": (5.2, 52.2), "C44": (14.4, 59.2, 90), "C45": (70.936, 57.0, 90)}
 # test points show their net name (the value) on the silk, next to the pad: (x, y, justify)
-TPTEXT = {"TP6": (38.0, 66.8, 0), "TP7": (100.5, 78.8, 0), "TP9": (94.5, 86.8, 0)}
+# (x, y, justify[, angle])
+TPTEXT = {"TP6": (17.007, 36.125, 0), "TP7": (61.041, 41.295, 0), "TP9": (59.263, 48.485, 0, 90), "TP10": (17.805, 45.38, 0)}
 
 
 def mm(x):
@@ -170,7 +174,7 @@ def load_footprint(fpid):
 
 
 def outline(board):
-    for (x1, y1), (x2, y2) in (((0, 0), (W, 0)), ((W, 0), (W, H)), ((W, H), (0, H)), ((0, H), (0, 0))):
+    for (x1, y1), (x2, y2) in (((0, TOP), (W, TOP)), ((W, TOP), (W, H)), ((W, H), (0, H)), ((0, H), (0, TOP))):
         s = pcbnew.PCB_SHAPE(board)
         s.SetShape(pcbnew.SHAPE_T_SEGMENT)
         s.SetStart(pt(x1, y1))
@@ -212,8 +216,8 @@ def texts(fp):
         r.SetVisible(False)
         return
     if ref in REFPOS:
-        r.SetPosition(pt(*REFPOS[ref]))
-        r.SetTextAngleDegrees(0)
+        r.SetPosition(pt(*REFPOS[ref][:2]))
+        r.SetTextAngleDegrees(REFPOS[ref][2] if len(REFPOS[ref]) > 2 else 0)
         return
     if ref in BIG:
         return
@@ -226,7 +230,7 @@ def texts(fp):
         v.SetLayer(pcbnew.F_SilkS)
         v.SetVisible(True)
         if ref in TPTEXT:
-            x, y, just = TPTEXT[ref]
+            x, y, just = TPTEXT[ref][:3]
             pos = pt(x, y)
         else:                                   # a test point the table does not know: below it
             just = 0
@@ -235,7 +239,7 @@ def texts(fp):
             v.SetHorizJustify(pcbnew.GR_TEXT_H_ALIGN_LEFT)
     t.SetTextSize(pcbnew.VECTOR2I(mm(0.8), mm(0.8)))
     t.SetTextThickness(mm(0.12))
-    t.SetTextAngleDegrees(0)
+    t.SetTextAngleDegrees(TPTEXT[ref][3] if ref in TPTEXT and len(TPTEXT[ref]) > 3 else 0)
     t.SetPosition(pos)
 
 
@@ -243,6 +247,10 @@ def build():
     comps, nets = netlist()
     board = pcbnew.BOARD()
     board.SetCopperLayerCount(2)
+    # the title block make_fab.py reads (the package's date and revision)
+    tb = board.GetTitleBlock()
+    tb.SetTitle("JLR MOST reader"); tb.SetDate("2026-10-03"); tb.SetRevision("1.0")
+    tb.SetComment(0, "Generated layout: reader_hw/gen_reader_pcb.py, routed by hand (as coordinates) on the user's placement")
     ds = board.GetDesignSettings()
     ds.m_TrackMinWidth = mm(0.15)
     ds.m_ViasMinSize = mm(0.5)
@@ -320,7 +328,7 @@ def build():
         texts(fp)
     outline(board)
     for layer in (pcbnew.F_Cu, pcbnew.B_Cu):
-        zone(board, layer, netinfo["GND"], (0.5, 0.5, W - 0.5, H - 0.5))
+        zone(board, layer, netinfo["GND"], (0.5, TOP + 0.5, W - 0.5, H - 0.5))
     return board, comps, nets
 
 
@@ -393,7 +401,7 @@ def main():
     (HERE / f"{PROJECT}.kicad_dru").write_text(RULES, encoding="utf-8", newline="\n")
     pcbnew.SaveBoard(str(out), board)
     canonical(out)
-    print(f"wrote {out}: {len(comps)} parts + {len(HOLES)} holes, {len(nets)} nets, {W:.0f} x {H:.0f} mm, no tracks")
+    print(f"wrote {out}: {len(comps)} parts + {len(HOLES)} holes, {len(nets)} nets, {W:.2f} x {H - TOP:.2f} mm, no tracks")
     parked = [r for r, (x, y, rot) in PLACE.items() if x > W]
     if parked:
         print("beside the board, to be placed:", " ".join(parked))

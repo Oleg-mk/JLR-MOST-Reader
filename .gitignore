@@ -5,3 +5,4 @@ reader_hw/erc.rpt
 *.kicad_prl
 *-backups/
 ~*.lck
+.history/

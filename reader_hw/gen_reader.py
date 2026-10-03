@@ -166,7 +166,8 @@ RIGHT = ["5V", "GND", "76 HSPI_DAT", "80 SDIO_D2", "42 LCD_R3", "41 LCD_R4",
 def module_pins():
     out = []
     for i, n in enumerate(LEFT):
-        t = "power_out" if n == "3V3" else "power_in" if n == "GND" else "bidirectional"
+        # pin 7 (FPGA 16, LED1) is this board's 3V3_SW source, driven high by the gateware
+        t = ("power_out" if n in ("3V3", "16 LED1") else "power_in" if n == "GND" else "bidirectional")
         out.append((str(i + 1), n, t, "L", G * (i + 1)))
     for i, n in enumerate(RIGHT):
         t = ("power_in" if n in ("5V", "GND") else "power_out" if n == "3V3"
@@ -807,6 +808,11 @@ def power_block(sh):
     d2 = sh.at_pin("DZ", "D2", "SMBJ36A", "1", (48.26, y + 5.08), r=270, fp="Diode_SMD:D_SMB",
                    ref_at=(45.72, y + 7.62), val_at=(45.72, y + 10.16), fjust=("right", "right"))
     sh.wire((48.26, y), d2.p("1")); sh.gnd(d2.p("2"))
+    # C83: a ceramic across the input behind the fuse, beside D2 (the user's, 2026-10-03: on the board
+    # it sits between F1 and D2); behind F1 so a shorted part only blows the fuse
+    c83 = sh.at_pin("C", "C83", "100n 100V", "1", (50.8, y + 5.08), fp=SMD["C"],
+                    ref_at=(52.07, y + 12.7), val_at=(52.07, y + 15.24), fjust=("left", "left"))
+    sh.wire((50.8, y), c83.p("1")); sh.gnd(c83.p("2"))
     c1 = sh.at_pin("C", "C1", "10u 100V", "1", (86.36, y + 5.08), fp="Capacitor_SMD:C_1210_3225Metric")
     c2 = sh.at_pin("C", "C2", "100n 100V", "1", (99.06, y + 5.08), fp=SMD["C"])
     sh.wire((86.36, y), c1.p("1")); sh.wire((99.06, y), c2.p("1"))
@@ -817,7 +823,7 @@ def power_block(sh):
             "J4 Micro-Fit 3.0 кутовий 43650-0200 (парна частина 43645-0200, контакти 43030), 5 А, на краю плати під J1.",
             "F1 2 А інерційний; D2 SMBJ36A перед D1: мовчить при 35 В (ISO 16750-2 B), імпульси ISO 7637-2 тисне до ~50 В.",
             "3V3_AON (U5) завжди: FOT, U1, U4; на стоянці разом ~50 мкА. Без 3V3_AON обхід мертвий і кільце розірване.",
-            "5V_SW (U6, 80 В, 400 кГц) за WAKE: модуль FPGA, від його 3V3 ще U3 і J6, ~0.3 А. L2 + C44/C45: 400 кГц не в джгут.")):
+            "5V_SW (U6, 80 В, 400 кГц) за WAKE: модуль FPGA, від його виводу 16 ще U3 і J6, ~0.3 А. L2 + C44/C45: 400 кГц не в джгут.")):
         sh.text(line, 17.78, 87.63 + 3.81 * i, 1.27)
 
     # LDO: VBAT_P -> 3V3_AON, always on
@@ -869,6 +875,12 @@ def power_block(sh):
                       val_at=(x - 2.54, vin[1] + 5.08), fjust=("right", "right"))
         sh.wire(prev.p("1"), c.p("1")); sh.gnd(c.p("2"))
         prev = c
+    # C84: a second ceramic beside the electrolytic C45 on the board (the user's copy, 2026-10-03);
+    # drawn apart here because the row above has no room left
+    c84 = sh.at_pin("C", "C84", "100n 100V", "1", (177.8, 30.48), fp=SMD["C"])
+    sh.up("VBAT_P", c84.p("1"), 2.54)
+    sh.gnd(c84.p("2"))
+    sh.text("C84 біля C45 (на платі).", 167.64, 45.72, 1.27)
     sh.lbl("WAKE", u6.p("2"), 20.32, "L")
     b = u6.p("1")[1] + 2.54
     sh.wire(u6.p("1"), (u6.p("1")[0], b)); sh.wire(u6.p("9"), (u6.p("9")[0], b))
@@ -1029,7 +1041,7 @@ def isolation_block(sh):
     sh.lbl("RX_IN", u3.p("4"), 10.16, "R")
     sh.decouple(u3.p("5"), "3V3_SW", "C12")
     sh.gnd(u3.p("3"))
-    sh.text("U3 від 3V3_SW: коли FPGA вимкнена,", 210.82, 176.53, 1.27)
+    sh.text("U3 від 3V3_SW: поки FPGA не працює,", 210.82, 176.53, 1.27)
     sh.text("він (Ioff) не вантажить лінію кільця.", 210.82, 180.34, 1.27)
     sh.text("Один сигнал у FPGA: RX_BUF -> RX_IN.", 210.82, 184.15, 1.27)
     sh.text("Тригера U9 немає: FPGA нічого", 210.82, 187.96, 1.27)
@@ -1046,7 +1058,11 @@ def fpga_block(sh):
         p = m1.p(n)
         if n in left:
             sh.lbl(left[n], p, 10.16, "L")
-        elif n == "19":
+        elif n == "7":
+            # 3V3_SW comes from FPGA pin 16 (LED1), driven high by the gateware: U3 and J6 take
+            # microamps and 3..10 mA. The module's own 3V3 (pins 19, 36) sits at the bottom of
+            # the module and its line to U3 and J6 had to cross WAKE; from pin 7 it does not
+            # (the user's idea, 2026-10-03), and the board has no jumper left.
             sh.wire(p, (p[0] - 7.62, p[1])); sh.up("3V3_SW", (p[0] - 7.62, p[1]), 0)
         elif n == "20":
             sh.wire(p, (p[0] - 5.08, p[1])); sh.gnd((p[0] - 5.08, p[1]))
@@ -1078,17 +1094,20 @@ def fpga_block(sh):
                             ref_at=(x63, yc + 12.7), val_at=(x63, yc + 15.24))
             c64 = sh.at_pin("C", "C64", "100n", "1", (x64, yc), fp=SMD["C"],
                             ref_at=(x64, yc + 12.7), val_at=(x64, yc + 15.24))
-            sh.wire(c63.p("1"), c64.p("1")); sh.up("5V_SW", c63.p("1"), 2.54)
-            sh.gnd(c63.p("2")); sh.gnd(c64.p("2"))
+            # C85, a second 100n at the module's 5 V input (the user's copy of C64 on the board, 2026-10-03)
+            c85 = sh.at_pin("C", "C85", "100n", "1", (x64 + 10.16, yc), fp=SMD["C"],
+                            ref_at=(x64 + 10.16, yc + 12.7), val_at=(x64 + 10.16, yc + 15.24))
+            sh.wire(c63.p("1"), c64.p("1"), c85.p("1")); sh.up("5V_SW", c63.p("1"), 2.54)
+            sh.gnd(c63.p("2")); sh.gnd(c64.p("2")); sh.gnd(c85.p("2"))
         elif n in ("22", "35"):
             sh.wire(p, (p[0] + 5.08, p[1])); sh.gnd((p[0] + 5.08, p[1]))
         else:
             sh.nc(p)
     sh.text("Контакти 1..20 / 21..40 згори вниз, від USB-C; назва = вивід GW2AR + що на ньому на платі (datasheet v1.3).", 279.4, 180.34, 1.27)
     sh.text("RX_IN -> 27 (LCD_B7) через IDES8 на 792 Мвиб/с (1.26 нс), як у MOST25-to-AUDIO; 28 (його пара) вільний.", 279.4, 184.15, 1.27)
-    sh.text("SPDIF_F <- 42 (LCD_R3) через OSER8 на тій самій сітці; 41 (його пара) вільний. Обидва лише на порожньому роз'ємі LCD.", 279.4, 187.96, 1.27)
-    sh.text("Решта виводів вільна. Логи і запис кільця - через USB-UART самого модуля (BL616), стан - на його світлодіодах.", 279.4, 191.77, 1.27)
-    sh.text("D3: USB і 5V_SW разом не з'єднуються; U6 дає 5.3 В, на модулі ~5.0 В. 3V3_SW з модуля: U3, J6.", 279.4, 195.58, 1.27)
+    sh.text("SPDIF_F <- 42 (LCD_R3, IOB42B) через OSER8 на тій самій сітці; пара IOB42A у QN88 не виведена. Обидва лише на порожньому роз'ємі LCD.", 279.4, 187.96, 1.27)
+    sh.text("3V3_SW = вивід FPGA 16 (контакт 7, LED1) у постійній 1: U3 і J6. 3V3 модуля (19, 36) вільні: 3V3_SW не перетинає WAKE.", 279.4, 191.77, 1.27)
+    sh.text("D3: USB і 5V_SW разом не з'єднуються; U6 дає 5.3 В, на модулі ~5.0 В. Решта виводів вільна; логи - USB-UART модуля.", 279.4, 195.58, 1.27)
 
 
 def output_block(sh):
@@ -1111,7 +1130,7 @@ def output_block(sh):
     sh.gnd(c31.p("2")); sh.gnd(c32.p("2"))
     sh.gnd(j6.p("3"), 2.54)
     sh.text("SPDIF_F (FPGA 42) -> R28 -> J6 PLT133/T10W: один вихід, лише TOSLINK (коаксіального J7 немає).", 212.09, 242.57, 1.27)
-    sh.text("Vcc передавача з 3V3_SW модуля: ~20 мА на світлодіод; C31/C32 біля J6. Корпус T10: виводи 8.5 мм від краю плати,", 212.09, 246.38, 1.27)
+    sh.text("Vcc передавача з 3V3_SW (вивід FPGA 16): 3 мА, до 10 мА (PLT133); C31/C32 біля J6. Корпус T10: виводи 8.5 мм від краю,", 212.09, 246.38, 1.27)
     sh.text("лапка на краю, порт виступає на 2.6 мм (креслення Everlight, третій кут; перевірено в MOST25-to-AUDIO v1.4).", 212.09, 250.19, 1.27)
 
 
@@ -1125,10 +1144,13 @@ def testpoint_block(sh):
         q = (x - 7.62, y)
         sh.wire(tp.p("1"), q); sh.up(rail, q, 2.54)
         y += 7.62
-    tp = sh.at_pin("TP", "TP9", "GND", "1", (x, y), fp="TestPoint:TestPoint_Pad_D2.0mm", bom=False,
-                   ref_at=(x + 2.54, y - 1.27), val_at=(x + 2.54, y + 1.27), fjust=("left", "left"))
-    q = (x - 5.08, y)
-    sh.wire(tp.p("1"), q); sh.gnd(q, 2.54)
+    # two ground points: TP9 beside 5V_SW, TP10 beside 3V3_AON (the user's copy on the board, 2026-10-03)
+    for ref in ("TP9", "TP10"):
+        tp = sh.at_pin("TP", ref, "GND", "1", (x, y), fp="TestPoint:TestPoint_Pad_D2.0mm", bom=False,
+                       ref_at=(x + 2.54, y - 1.27), val_at=(x + 2.54, y + 1.27), fjust=("left", "left"))
+        q = (x - 5.08, y)
+        sh.wire(tp.p("1"), q); sh.gnd(q, 2.54)
+        y += 7.62
     sh.text("Шини і земля під щуп. Лінії кільця без", 338.0, 246.38, 1.27)
     sh.text("точок: RX_BUF на виводі 4 U1, RX_IN на U3.", 338.0, 250.19, 1.27)
 
