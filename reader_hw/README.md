@@ -31,8 +31,9 @@ was, now through an OSER8 on the same 1.26 ns grid - both on pins whose only oth
 is the module's empty LCD connector. Logs and ring captures go over the module's own USB-UART,
 the status over its LEDs.
 
-The TOSLINK transmitter runs from the module's 3.3 V: 20 mA for its LED, nothing a PLL in the
-listener's block 9 wanted a regulator of its own for.
+The TOSLINK transmitter runs from 3V3_SW, FPGA pin 16 held high by the gateware: 3 mA, 10 at
+most (PLT133), nothing a PLL in the listener's block 9 wanted a regulator of its own for. It is
+powered and driven by the same FPGA, so its input is never driven while its supply is off.
 
 ## Not on this board, and why
 
