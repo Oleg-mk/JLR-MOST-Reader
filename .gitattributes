@@ -1,2 +1,7 @@
+# kit/: what the project hands over (tools/make_kit.py). The bitstream byte for byte (its sha256
+# is in BUILD.txt); the Windows launchers with CRLF, the macOS ones with LF (bash stops at a CR)
+kit/2_fpga/*.fs -text
+kit/**/*.bat text eol=crlf
+kit/**/*.command text eol=lf
 # KiCad's PDFs byte for byte (make_fab.py pins their dates)
 *.pdf binary

@@ -13,3 +13,5 @@ reader_gw/board/impl/
 reader_gw/board/build_id.vh
 # trip logs (tools/ring_log.py): large, kept outside git
 logs/
+# the laptop kit's Python environment, made by its launchers on the first run
+.venv/

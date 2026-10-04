@@ -45,6 +45,7 @@ STEPS = [
      [PY, "-c", "import subprocess, sys; o = subprocess.run(['git', 'status', '--porcelain', '--', 'reader_hw/fab'], "
                 "capture_output=True, text=True).stdout; print(o or 'reader_hw/fab is the committed package'); "
                 "sys.exit(1 if o.strip() else 0)"]),
+    ("kit: kit/ equal to its sources, the bitstream to the gateware (make_kit.py)", [PY, "tools/make_kit.py", "--check"]),
 ]
 
 
