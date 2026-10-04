@@ -240,6 +240,9 @@ module ctrl_decode #(
     reg        s_pcm, s_res, s_w3, s_chn, s_mono;
     reg [2:0]  dsrc, dtgt;                  // pos_dev[k] == src, == tgt
     reg [7:0]  m01, m23, m45, m67, m89;
+    reg [7:0]  pdp [2:10];                  // pd[j] + 1, a clock ahead of the position's pick: the add
+                                            // after the c_sinfo pick was a slowest path (2026-10-04);
+                                            // pd holds from E1 to the next telegram, so it is the same
     always @(posedge clk) begin
         e3 <= e2 && !rst;
         if (e2) begin
@@ -279,13 +282,14 @@ module ctrl_decode #(
             m45 <= pmax(pd[6],  pd[7],  plen > 4'd6,  plen > 4'd7);
             m67 <= pmax(pd[8],  pd[9],  plen > 4'd8,  plen > 4'd9);
             m89 <= pmax(pd[10], pd[11], plen > 4'd10, plen > 4'd11);
+            for (k = 2; k <= 10; k = k + 1) pdp[k] <= pd[k] + 8'd1;
         end
     end
 
     // ---------------------------------------------------------- E4: the message
     // Both lists are checked and the message takes its own: Connect and SinkInfo have different
     // FktIDs, so a Connect meets the Connect's verdict and a SinkInfo its own, as the one-clock
-    // cl[] picked them by f_sinfo.
+    // pick of b0..b5 by c_sinfo does.
     reg         chan_c, chan_s;
     always @* begin
         chan_c = 1'b1;
@@ -301,16 +305,11 @@ module ctrl_decode #(
     wire        fmt_s   = s_res && s_chn && chan_s && s_pcm && nls == need;
     wire        p_w3    = c_sinfo && s_w3;
     wire        p_mono  = c_sinfo ? s_mono : nch == 4'd2;
-    // the position's bytes: L the first Resolution channels, R the next ones of a stereo
-    wire [7:0]  cl [0:5];
-    assign cl[0] = c_sinfo ? pd[5]  : pd[2];
-    assign cl[1] = c_sinfo ? pd[6]  : pd[3];
-    assign cl[2] = c_sinfo ? pd[7]  : pd[4];
-    assign cl[3] = c_sinfo ? pd[8]  : pd[5];
-    assign cl[4] = c_sinfo ? pd[9]  : pd[6];
-    assign cl[5] = c_sinfo ? pd[10] : pd[7];
-    wire [7:0]  b0 = cl[0] + 8'd1, b1 = cl[1] + 8'd1, b2 = cl[2] + 8'd1,
-                b3 = cl[3] + 8'd1, b4 = cl[4] + 8'd1, b5 = cl[5] + 8'd1;
+    // the position's bytes: L the first Resolution channels, R the next ones of a stereo, each
+    // its channel + 1 (pdp, added at E2)
+    wire [7:0]  b0 = c_sinfo ? pdp[5]  : pdp[2], b1 = c_sinfo ? pdp[6]  : pdp[3],
+                b2 = c_sinfo ? pdp[7]  : pdp[4], b3 = c_sinfo ? pdp[8]  : pdp[5],
+                b4 = c_sinfo ? pdp[9]  : pdp[6], b5 = c_sinfo ? pdp[10] : pdp[7];
     reg         e4;
     reg         m_conn, m_res, m_err, m_sok, m_sbad, m_disc, m_mute, m_spk, m_409, hit_m;
     reg         w3_n, mono_n;

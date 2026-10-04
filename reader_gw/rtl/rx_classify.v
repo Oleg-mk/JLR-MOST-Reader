@@ -132,8 +132,11 @@ module rx_classify #(
 
     // ---- stage 4: the error of r against its class (the subtract alone: with
     // the class mux and the rounding adds in one clock it was clk_s's slowest path)
-    reg               v2b, l2b;
-    reg [1:0]         c2b;
+    // v2b/c2b and v3/c3 kept: rx_framer's input stages equal them bit for bit, and merged, one
+    // block's logic was fed from the other's register (rx_framer.v, 2026-10-04)
+    reg               v2b /* synthesis syn_preserve = 1 */;
+    reg               l2b;
+    reg [1:0]         c2b /* synthesis syn_preserve = 1 */;
     reg signed [17:0] e;
     always @(posedge clk) begin
         v2b <= v2 & ~rst; l2b <= l2; c2b <= c2;
@@ -144,8 +147,9 @@ module rx_classify #(
     // registers: inside an expression with the unsigned ui_q, >>> would
     // silently turn into a logical shift. Rounded, not floored: a floor
     // biases ui low by half an LSB per step.
-    reg               v3, l3;
-    reg [1:0]         c3;
+    reg               v3 /* synthesis syn_preserve = 1 */;
+    reg               l3;
+    reg [1:0]         c3 /* synthesis syn_preserve = 1 */;
     reg signed [17:0] e6, e7;
     always @(posedge clk) begin
         v3 <= v2b & ~rst; l3 <= l2b; c3 <= c2b;

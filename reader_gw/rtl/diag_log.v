@@ -114,6 +114,9 @@ module diag_log #(
     reg  [NP-1:0] done;                     // pulse: producer k's record has been taken whole
     reg  [7:0]    wi /* synthesis syn_maxfan = 16 */;   // the byte the producers serve
     reg  [7:0]    wi_d /* synthesis syn_maxfan = 16 */; // wi a clock later: the byte within the lane
+    // wi again, for STATUS's 12-lane pick alone (wi -> ln1 was the slowest path in builds where wi's
+    // fanout to the seven producers pulled it away; 2026-10-04): kept apart, it sits by that pick
+    reg  [7:0]    wi1 /* synthesis syn_preserve = 1 */;
     reg           st_load;                  // pulse: a STATUS was taken (the tb's alignment)
     reg           lost0, lost1, lost2, lost3; // pulses: a record had to be dropped
     wire [NP-1:0] req;
@@ -131,6 +134,7 @@ module diag_log #(
     reg         bwe_t /* synthesis syn_preserve = 1 */;
     reg         fd_t  /* synthesis syn_preserve = 1 */;
     reg [5:0]   ba_t  /* synthesis syn_preserve = 1 */;
+    reg         ba0_t;                      // ba == 0, taken with ba_t: the BLOCK record's byte-0 test
     reg [7:0]   bd_t  /* synthesis syn_preserve = 1 */;
     reg [3:0]   bi_t  /* synthesis syn_preserve = 1 */;
     reg [7:0]   rlen_t, sraw_t, ctag_t;
@@ -143,7 +147,7 @@ module diag_log #(
     always @(posedge clk) begin
         rv_t <= rv & ~rst; rlen_t <= rlen; rl_t <= rl; gl_t <= gl;
         sv_t <= sv & ~rst; sym_t <= sym; sl_t <= sl; sraw_t <= sraw; ui_t <= ui_q; b_t <= bias; rel_t <= relearn;
-        bwe_t <= bwe & ~rst; ba_t <= ba; bd_t <= bd; fd_t <= fd & ~rst; fpar_t <= fpar; bi_t <= bi;
+        bwe_t <= bwe & ~rst; ba_t <= ba; ba0_t <= ba == 6'd0; bd_t <= bd; fd_t <= fd & ~rst; fpar_t <= fpar; bi_t <= bi;
         bk_t <= bk; lk_t <= lk; er_t <= er; pre_t <= pre_done; psig_t <= pre_sig; csig_t <= com_sig;
         run_t <= run; perok_t <= per_ok; r48_t <= rate48; per_t <= per; err_t <= err_last; pin_t <= pin;
         tel_t <= tel; hit_t <= hit; drop_t <= dropped; pk_t <= par_known; ps_t <= par_sense; ds_t <= dstate;
@@ -275,6 +279,7 @@ module diag_log #(
     reg [15:0] wake2_left;                  // ms to the steady-line capture (0: none due)
     reg [15:0] lock_ms, unl_since, pos_since, pos_left;
     reg        unl_ever, pos_ever, pos_armed;
+    reg        pos_z;                       // pos_left == 0, kept with it: the compare off the count's path
     reg [1:0]  pos_s;
     reg        t_wake, t_wake2, t_unl, t_pos, t_pcr, t_pcf;   // pending trigger requests
     reg        trig, trig_fr;
@@ -289,7 +294,7 @@ module diag_log #(
         trig <= 1'b0;
         if (rst) begin
             wake2_left <= 16'd0; lock_ms <= 16'd0; unl_since <= 16'd0; pos_since <= 16'd0; pos_left <= 16'd0;
-            unl_ever <= 1'b0; pos_ever <= 1'b0; pos_armed <= 1'b0; pos_s <= 2'd0;
+            unl_ever <= 1'b0; pos_ever <= 1'b0; pos_armed <= 1'b0; pos_s <= 2'd0; pos_z <= 1'b1;
             t_wake <= 1'b0; t_wake2 <= 1'b0; t_unl <= 1'b0; t_pos <= 1'b0; t_pcr <= 1'b0; t_pcf <= 1'b0;
             trig_fr <= 1'b0; trig_cause <= 3'd0;
         end else begin
@@ -310,13 +315,16 @@ module diag_log #(
             if (ms && pos_since != 16'hFFFF) pos_since <= pos_since + 16'd1;
             if (cok_t && cmd_t == 8'h01 && cp_t[49:48] != 2'd0) begin
                 pos_armed <= 1'b1; pos_s <= cp_t[53:52]; pos_left <= POS_WAIT_MS[15:0];
+                pos_z <= POS_WAIT_MS[15:0] == 16'd0;
             end else if (pos_armed) begin
                 if (es_d && nz_q) begin
                     pos_armed <= 1'b0;
                     if (!pos_ever || pos_since >= POS_GAP_MS) begin t_pos <= 1'b1; pos_ever <= 1'b1; pos_since <= 16'd0; end
                 end else if (ms) begin
-                    if (pos_left == 16'd0) pos_armed <= 1'b0;
-                    else pos_left <= pos_left - 16'd1;
+                    // pos_z, not a compare of pos_left here: the compare deciding all 16 bits' next
+                    // value was the build's slowest path (7.3 % margin, 2026-10-04)
+                    if (pos_z) pos_armed <= 1'b0;
+                    else begin pos_left <= pos_left - 16'd1; pos_z <= pos_left == 16'd1; end
                 end
             end
             // the laptop
@@ -369,8 +377,15 @@ module diag_log #(
     reg  [4:0]  bdly;                       // clocks to the load after frame 15
     reg         r0;
     reg  [159:0] bh;                        // the record's header, as taken
-    wire        part_b = bwe_t && ba_t == 6'd0 && fmask != 16'd0 && bi_t <= last_bi;   // the next block began
-    wire        part_s = ev_stop && fmask != 16'd0 && bdly == 5'd0;                     // the line stopped
+    // the next block began (its byte 0 with frames collected and an index not above the last), or
+    // the line stopped with frames collected. The compares are taken a clock ahead (bi_t <= last_bi
+    // and fmask != 0 -> part -> 300 enables were slowest paths, 2026-10-04): bi_t and fmask hold
+    // still for hundreds of clocks round a byte 0 (bi_t from the preamble on, fmask from the last
+    // frame's end) and for STOP_US before the line is called stopped; ba0_t is ba_t's own compare
+    reg         bi_le_q, fm_nz_q;
+    always @(posedge clk) begin bi_le_q <= bi_t <= last_bi; fm_nz_q <= fmask != 16'd0; end
+    wire        part_b = bwe_t && ba0_t && fm_nz_q && bi_le_q;
+    wire        part_s = ev_stop && fm_nz_q && bdly == 5'd0;
     wire        part = part_b || part_s;
     wire        load0 = (bdly == 5'd1 && !fd_t) || part;
     wire [4:0]  cbi = {bi_t, ba_t == 6'd62};
@@ -445,6 +460,9 @@ module diag_log #(
     reg  [63:0]  chmask;
     reg  [7:0]   prevb [0:63];
     reg          ch_v; reg [5:0] ch_a; reg [7:0] ch_d;
+    reg          ch_x; reg [5:0] ch_xa;      // the compare, registered: the bit is set a clock later
+    reg  [63:0]  seen;                      // the byte was written since power-up: only then is prevb its
+                                            // last value (on the chip prevb starts at 0, in a simulation X)
     reg  [3:0]   pk_n;                      // channels still to take this frame
     reg  [2:0]   pk_i, pk_i1, pk_i2;        // the channel at each step
     reg          pk_v1, pk_v2;
@@ -461,19 +479,25 @@ module diag_log #(
     wire [15:0] e16 = (e_s > 32'sd32767) ? 16'h7FFF : (e_s < -32'sd32768) ? 16'h8000 : err_t[15:0];
     wire [1:0]  cidx = {~sl_t, sym_t == 2'd2};
     wire [23:0] pk_abs = pk_ch[23] ? (24'd0 - pk_ch) : pk_ch;
+    // pk_a against every channel's peak at once: picking pkr[pk_i2] first and comparing after was
+    // a slowest path (2026-10-04); the channel now only selects which compare is written
+    reg  [7:0]   pk_gt;
+    integer      ipk;
+    always @* for (ipk = 0; ipk < 8; ipk = ipk + 1) pk_gt[ipk] = pk_a > pkr[ipk];
     wire        pk_busy = pk_n != 4'd0 || pk_v1 || pk_v2;
     always @(posedge clk) st_freeze <= r1;
     always @(posedge clk) begin
         lost1 <= 1'b0; st_load <= 1'b0;
-        // the byte activity mask: a byte that differs from the same byte a frame ago
+        // the byte activity mask: a byte that differs from the same byte a frame ago. The read
+        // of prevb and the compare take one clock, the mask bit's decode and set the next (the
+        // two in one clock were the build's slowest path, 1.9 % margin on 2026-10-04)
         ch_v <= bwe_t; ch_a <= ba_t; ch_d <= bd_t;
-        if (ch_v) begin
-            if (prevb[ch_a] != ch_d && !st_freeze) chmask[ch_a] <= 1'b1;
-            prevb[ch_a] <= ch_d;
-        end
+        ch_x <= ch_v && seen[ch_a] && prevb[ch_a] != ch_d; ch_xa <= ch_a;
+        if (ch_v) begin prevb[ch_a] <= ch_d; seen[ch_a] <= 1'b1; end
+        if (ch_x && !st_freeze) chmask[ch_xa] <= 1'b1;
         if (rst) begin
             for (i1 = 0; i1 < 4; i1 = i1 + 1) begin cmin[i1] <= 8'hFF; cmax[i1] <= 8'd0; end
-            emin <= 16'h7FFF; emax <= 16'h8000; odd_sig <= 12'd0; chmask <= 64'd0; pk_n <= 4'd0;
+            emin <= 16'h7FFF; emax <= 16'h8000; odd_sig <= 12'd0; chmask <= 64'd0; pk_n <= 4'd0; seen <= 64'd0;
             pk_i <= 3'd0; pk_i1 <= 3'd0; pk_i2 <= 3'd0; pk_v1 <= 1'b0; pk_v2 <= 1'b0; pk_ch <= 24'd0; pk_a <= 16'd0;
             for (i1 = 0; i1 < 8; i1 = i1 + 1) pkr[i1] <= 16'd0;
             st_pend <= 1'b0; r1 <= 1'b0; sn_cnt <= 176'd0; sn_st <= 16'd0; sn_ui <= 16'd0;
@@ -509,7 +533,8 @@ module diag_log #(
                 3'd6: pk_ch <= out_w[47:24];  default: pk_ch <= out_w[23:0];
             endcase
             pk_a <= pk_abs[23:8];
-            if (pk_v2 && pk_a > pkr[pk_i2]) pkr[pk_i2] <= pk_a;
+            for (i1 = 0; i1 < 8; i1 = i1 + 1)
+                if (pk_v2 && pk_i2 == i1 && pk_gt[i1]) pkr[i1] <= pk_a;
             if (st_tick) st_pend <= 1'b1;
             if (st_pend && !pk_busy && !(es_t && !r1)) begin
                 st_pend <= 1'b0;
@@ -534,7 +559,7 @@ module diag_log #(
                          sn_b, sn_ui, sn_cnt, BUILD_ID, sn_st, sn_now, 8'h00, 8'h57, 8'hA5};
     reg  [63:0] ln1;
     always @(posedge clk) begin
-        ln1 <= rec1[64 * wi[6:3] +: 64];
+        ln1 <= rec1[64 * wi1[6:3] +: 64];
         ob1 <= ln1[8 * wi_d[2:0] +: 8];
     end
     assign req[1] = r1;
@@ -846,24 +871,26 @@ module diag_log #(
     always @(posedge clk) begin
         done <= {NP{1'b0}};
         if (rst) begin
-            wst <= W_IDLE; sel_q <= {NP{1'b0}}; wi <= 8'd0; wl <= 8'd0; wi_d <= 8'd0; wi_d2 <= 8'd0; cp_d <= 1'b0;
+            wst <= W_IDLE; sel_q <= {NP{1'b0}}; wi <= 8'd0; wi1 <= 8'd0; wl <= 8'd0; wi_d <= 8'd0; wi_d2 <= 8'd0; cp_d <= 1'b0;
             cp_d2 <= 1'b0; wb <= 8'd0;
             pos_a <= 8'd0; len_a <= 8'd0; va <= 1'b0; seq <= 8'd0; xacc <= 8'd0; f_we <= 1'b0; f_wd <= 8'd0; gap <= 2'd0;
         end else begin
             // the index: the producers serve byte wi two clocks later
             cp_d <= 1'b0; cp_d2 <= cp_d; wi_d <= wi; wi_d2 <= wi_d;
             case (wst)
+            // wi is 0 here already (reset, or the gap's end): the pick does not reach wi's 16
+            // registers (pick -> wi was a slowest path, 2026-10-04)
             W_IDLE: if (first != {NP{1'b0}}) begin
-                sel_q <= first; wi <= 8'd0; wst <= W_COPY;
+                sel_q <= first; wst <= W_COPY;
                 wl <= first[0] ? L0 : first[1] ? L1 : first[2] ? L2 : first[3] ? L3 : first[4] ? L4 : first[5] ? L5 : L6;
             end
             W_COPY: begin
                 cp_d <= 1'b1;
                 if (wi == wl - 8'd1) begin wst <= W_GAP; gap <= 2'd3; end
-                else wi <= wi + 8'd1;
+                else begin wi <= wi + 8'd1; wi1 <= wi1 + 8'd1; end
             end
             W_GAP: begin
-                if (gap == 2'd1) begin wst <= W_IDLE; sel_q <= {NP{1'b0}}; end
+                if (gap == 2'd1) begin wst <= W_IDLE; sel_q <= {NP{1'b0}}; wi <= 8'd0; wi1 <= 8'd0; end
                 gap <= gap - 2'd1;
             end
             default: wst <= W_IDLE;

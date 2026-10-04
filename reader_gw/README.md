@@ -158,7 +158,14 @@ registered net as before.
 Build: `cd board && python build.py` writes `build_id.vh` (the commit, bit 31 set for uncommitted
 changes; the log sends it in every STATUS), runs `gw_sh build.tcl` and then `check_timing.py`,
 which fails when a clock misses its constraint or keeps less than 10 % margin. Place and route
-run in Gowin's timing modes (`place_option 1`, `route_option 1`).
+run in Gowin's timing modes (`place_option 1`, `route_option 1`). gw_sh now and then exits at
+once with nothing written; build.py runs it again then (twice at most).
+
+`python sweep_ids.py` builds the same gateware eight times with other build IDs. The ID is a
+constant in the STATUS record and moves the placement: on 2026-10-04 one gateware kept 1.9 %
+with one ID and 12 % with another. The sweep shows that spread and fails only on a build that
+misses the clock; the 10 % is required of the bitstream that ships (build.py, make_kit.py
+--fpga).
 
 Cold start: the FPGA configures itself from the module's SPI flash every time the ring wakes it
 (5V_SW comes with WAKE). Gowin reads the flash one bit a clock at 2.5 MHz by default: the
@@ -200,7 +207,30 @@ BSRAM (16 of them the capture), 4 of 24 DSP. Getting there took four builds: the
 left 99.1 MHz; the records served from where their data already sits, a two-clock byte pick, an
 event queue in LUT RAM, a 16-block capture and the taps kept apart from amp_out's copies brought
 it to 99.9 MHz with the paths all routing, no logic; Gowin's timing modes for placement and
-routing then gave 110.8 MHz, 12.0 % margin. Before any of that, ctrl_decode's command-01 pick
+routing then gave 110.8 MHz, 12.0 % margin - for that one build ID: rebuilt from the commit
+(another ID) the same gateware kept 1.9 %. Eight IDs (`board/sweep_ids.py`) then found the
+paths that placement can make slow, each cut so that what goes out stays the same but for the
+byte activity's interval, now a clock earlier at both ends:
+- the byte activity's compare a clock before the mask bit;
+- the position trigger's zero test kept beside its counter (pos_z);
+- the peaks compared against all eight at once;
+- STATUS's lane pick on a copy of the writer's index of its own (wi1);
+- the writer's index set to 0 at the gap's end, not by its pick;
+- the BLOCK record's "the next block began" and "the line stopped" compares (bi_t <= last_bi,
+  fmask != 0) a clock ahead: both hold still for hundreds of clocks round a byte 0 and for
+  STOP_US before the line is called stopped; ba == 0 taken with ba_t, its own tap;
+- ctrl_decode's channel + 1 for a position added at E2 (pdp), the SinkInfo/Connect pick alone
+  left at E3 (pd holds from E1 to the next telegram);
+- rx_framer's input stages kept apart from rx_classify's registers, which they equal bit for bit
+  and which synthesis had merged them into (the framer's decode was fed from the classifier's
+  corner).
+The byte activity also got a seen mask (a byte counts from its second write after power-up): on
+the chip prevb starts at 0, in a simulation X, and without it the first STATUS after power-up
+marked standing bytes the simulation could not show. Every build of the day met the clock (the
+slowest 99.7 MHz), but over eight IDs the margin still spreads (0.7 to 20.9 % in the last full
+sweep): the chip is 82 % full and placement decides which path comes last. So the 10 % is checked
+on the build that ships, and the sweep only shows the spread. Before any of that, ctrl_decode's
+command-01 pick
 (pos_pend -> ps -> pos_b -> p, the worst path) got a clock of its own (p01_q, a clock ahead of
 the command; checked by run_ctrl.py and run_e2e.py): 121.6 MHz, 22.9 %, without the log.
 The checks that it still does the same: `run_ctrl.py`, `run_nco.py` (with three corners added

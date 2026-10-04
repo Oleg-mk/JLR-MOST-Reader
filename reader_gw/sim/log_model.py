@@ -42,7 +42,7 @@ def read_tap(path):
             ev["Y"].append((c, int(f[2]), int(f[3]), int(f[4])))
         elif k == "B":
             ev["B"].append((c, int(f[2]), int(f[3]), int(f[4])))
-        elif k in ("E", "L", "N", "Q"):
+        elif k in ("E", "L", "N", "Q", "D"):
             ev[k].append(c)
         elif k == "G":
             ev["G"].append((c,) + tuple(int(x) for x in f[2:9]))
@@ -204,6 +204,32 @@ def status_counts(ev, q):
     tels = sum(1 for xc, xk in ev["X"] if xk == "t" and xc <= lim)
     return dict(runs=runs & 0xFFFFFF, glitches=gls & 0xFFFFFF, class0=c0 & 0xFFFFFF, frames=frames & 0xFFFF,
                 errors=n(ev["E"]) & 0xFFFF, tels=tels & 0xFFFF, relearns=n(ev["L"]) & 0xFFFF, pins=n(ev["N"]) & 0xFFFF)
+
+
+def chmasks(ev):
+    """Each STATUS's byte activity mask, by its index: the frame bytes (B lines) that differ from
+    the same byte's last write (a byte's first write since power-up compares with nothing: the
+    log's seen mask), from B clock D - 1 to Q - 3. The log registers a byte (bwe_t), again (ch_v),
+    compares (ch_x) and sets the bit at the next clock, so a byte of B clock c sets its bit at
+    clock c + 3; a set needs the STATUS unfrozen: from two clocks after the last record went out
+    whole (D, the clear) to the clock it is taken (Q)."""
+    from bisect import bisect_left, bisect_right
+    prev, cs, bits = {}, [], []
+    for c, ba, bd, _ in ev["B"]:
+        if ba in prev and prev[ba] != bd:
+            cs.append(c)
+            bits.append(1 << ba)
+        prev[ba] = bd
+    out = []
+    for q in ev["Q"]:
+        ds = [d for d in ev["D"] if d < q]
+        lo = bisect_left(cs, ds[-1] - 1) if ds else 0
+        hi = bisect_right(cs, q - 3)
+        m = 0
+        for b in bits[lo:hi]:
+            m |= b
+        out.append(m)
+    return out
 
 
 def state_at(ev, c):

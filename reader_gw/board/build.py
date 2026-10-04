@@ -31,18 +31,29 @@ def build_id():
     return bid
 
 
+def run_gw_sh(tcl):
+    """gw_sh's exit code and output. gw_sh now and then exits at once with nothing written
+    (three times on 2026-10-04, the same build then running fine): that is tried twice more."""
+    for _ in range(3):
+        r = subprocess.run([str(GW_SH), tcl], cwd=HERE, capture_output=True,
+                           text=True, encoding="utf-8", errors="replace")
+        log = r.stdout + r.stderr
+        if r.returncode == 0 or log.strip():
+            break
+        print("gw_sh exited at once with no output: again", flush=True)
+    return r.returncode, log
+
+
 def main():
     print(f"BUILD_ID {build_id():08X}", flush=True)
-    r = subprocess.run([str(GW_SH), "build.tcl"], cwd=HERE, capture_output=True,
-                       text=True, encoding="utf-8", errors="replace")
-    log = r.stdout + r.stderr
+    code, log = run_gw_sh("build.tcl")
     (HERE / "impl").mkdir(exist_ok=True)
     (HERE / "impl" / "build.log").write_text(log, encoding="utf-8")   # kept for diagnosis
     for line in log.splitlines():
         if line.startswith(("ERROR", "WARN")):
             print(line, flush=True)
-    if r.returncode != 0 or "Bitstream generation completed" not in log:
-        print(f"BUILD: FAIL  gw_sh exit code {r.returncode}, "
+    if code != 0 or "Bitstream generation completed" not in log:
+        print(f"BUILD: FAIL  gw_sh exit code {code}, "
               f"bitstream marker {'found' if 'Bitstream generation completed' in log else 'missing'}; "
               f"full log in impl/build.log. Last lines:", flush=True)
         for line in log.splitlines()[-15:]:

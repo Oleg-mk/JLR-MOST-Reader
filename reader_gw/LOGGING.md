@@ -115,7 +115,9 @@ last STATUS.
     59..60  its phase error, least           61..62 greatest (samples, signed, saturated)
     63..74  input peaks of the three streams, L and R each, |sample| >> 8 (16 bits)
     75..78  output peaks, L and R, the same
-    79..86  frame bytes that changed between two frames at least once, bit k = byte k
+    79..86  frame bytes that changed between two frames at least once, bit k = byte k (a byte
+            counts from its second write after power-up; the interval runs from a clock before
+            the last STATUS went out to three clocks before this one was taken)
     87..88  ctrl_decode per stream s at bits 4s..4s+3: on, confirmed, muted, own level;
             b12 0x409 audio level heard, b13 0x409 nav level heard
     89..90  DARK in ms, 91..92 COLD in ms, as the laptop set them (0 when not attached)

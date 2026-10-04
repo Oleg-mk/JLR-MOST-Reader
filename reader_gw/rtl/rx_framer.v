@@ -115,8 +115,11 @@ module rx_framer #(
     // runs right after the failing one, a few UI later, and are ignored (fresh).
     reg  [31:0] prev_a;               // start of the run entering now
     reg signed [17:0] d_a;            // its start against the due time, with sv_a
-    reg         sv_a;
-    reg  [1:0]  sym_a;
+    // kept apart from rx_classify's v2b/c2b and v3/c3, which they equal bit for bit: merged, the
+    // decode below was fed from a register placed by the classifier's loop (8.1 % margin in one
+    // of six builds, 2026-10-04)
+    reg         sv_a  /* synthesis syn_preserve = 1 */;
+    reg  [1:0]  sym_a /* synthesis syn_preserve = 1 */;
     reg  [31:0] t_a;
     reg         ontime_b, late_b;     // with sym_valid (stage B)
     wire signed [17:0] w_s = win;
@@ -142,8 +145,8 @@ module rx_framer #(
     // output register (which synthesis shares with that block's own pipeline) it
     // had become clk_s's slowest path. The clk_s of latency change nothing
     // downstream: every edge carries its own sample time.
-    reg        sym_valid;
-    reg [1:0]  sym;
+    reg        sym_valid /* synthesis syn_preserve = 1 */;
+    reg [1:0]  sym       /* synthesis syn_preserve = 1 */;
     reg [31:0] sym_t;
     always @(posedge clk) begin
         sym_valid <= sv_a & ~rst; sym <= sym_a; sym_t <= t_a;

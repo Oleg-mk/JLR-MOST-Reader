@@ -135,6 +135,7 @@ module tb_core;
     //   E c                               a frame error;   L c relearn;   N c pin
     //   G c lk bk run pk ps ovr hold      any of these changed
     //   Q c                               the log took a STATUS record (for its intervals)
+    //   D c                               the STATUS record went out whole (its intervals start anew)
     //   A c ok bad tag sw                 amp_out: a commit's outcome, a bank switch
     //   I c in_w out_w                    the engine started
     reg [7:0] gst_d = 8'hFF;
@@ -159,6 +160,7 @@ module tb_core;
                                    u.par_sense, u.overrun, hold);
         gst_d <= gst;
         if (u.u_log.st_load) $fwrite(ft, "Q %0d\n", cyc);
+        if (u.u_log.done[1]) $fwrite(ft, "D %0d\n", cyc);
         if (u.commit_ok || u.commit_bad || u.bank_sw)
             $fwrite(ft, "A %0d %0d %0d %0d %0d\n", cyc, u.commit_ok, u.commit_bad, u.commit_tag, u.bank_sw);
         if (u.estart) $fwrite(ft, "I %0d %036h %012h\n", cyc, u.in_w, u.out_w);

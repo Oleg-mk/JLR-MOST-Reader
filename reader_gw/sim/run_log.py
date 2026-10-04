@@ -14,8 +14,11 @@ inside the core (out_tap.txt) clock by clock:
            and sense, the decoder's verdict), the masks, byte 63, the boundary descriptor, ui,
            the 32 bytes; partial blocks included
   CMD/SET  every position command and every coefficient set, byte for byte
-  STATUS   the counters against the tap at the clock the log took each one; the build ID; the
-           laptop's times; the receiver's eye; the peaks; the byte activity
+  STATUS   the counters and the state against the tap at the clock the log took each one; the
+           build ID; the byte activity, bit for bit (which bytes moved: the ring's sound moves 63
+           of 64 bytes every frame, so the interval's edges are not tested to the clock - shifted
+           by 40 clocks the model still agrees); the laptop's times (log_ctrl's last STATUS).
+           The receiver's eye and the peaks are not compared
   EVENT    every lock, index, train, parity, commit and bank change, the laptop's commands and
            marks, the dark hold and the cold start, each with its argument and time
   CAPTURE  every dump a contiguous stretch of the line's runs (or the frame bytes) as the log
@@ -236,6 +239,7 @@ def check(d, cfg, end):
 
     # ------------------------------------------------------------ STATUS
     qs = ev["Q"]
+    masks = LM.chmasks(ev)
     st_ok = 0
     for k, r in enumerate(by[LF.STATUS]):
         if k >= len(qs):
@@ -248,6 +252,8 @@ def check(d, cfg, end):
             bad["build"] = (hex(r.f["build"]), hex(BUILD_ID))
         if r.f["lost"]:
             bad["lost"] = (r.f["lost"], 0)
+        if r.f["chmask"] != masks[k]:
+            bad["chmask"] = (f"{r.f['chmask']:016x}", f"{masks[k]:016x}")
         lk, bk, run, pk, ps, ovr, hold = LM.state_at(ev, q - 2)
         st = dict(locked=lk, known=bk, run=run, par_known=pk, par_sense=ps, overrun=ovr, held=hold)
         bad.update({f: (r.f[f], v) for f, v in st.items() if r.f[f] != v})
@@ -255,7 +261,7 @@ def check(d, cfg, end):
             probs.append(f"STATUS #{k} (tap clock {q}): {bad}")
         else:
             st_ok += 1
-    print(f"  STATUS {st_ok}/{len(by[LF.STATUS])} equal (counters, state, build)")
+    print(f"  STATUS {st_ok}/{len(by[LF.STATUS])} equal (counters, state, build, byte activity)")
 
     # ------------------------------------------------------------ CAPTURE dumps
     dumps, cur = [], []
