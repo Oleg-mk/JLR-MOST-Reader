@@ -8,7 +8,7 @@
 // and its pair IOB8[B] (pin 28) is left free on the board; pin 42 is IOB42[B], whose pair
 // IOB42[A] has no pin on the QN88 package (Gowin's pin report). Pin 41 is IOB43[A], another pair.
 // A third pin is a supply: pin 16 (LED1, header 7) is held high and is 3V3_SW, the supply of U3
-// (microamps) and J6 (PLT133: 3 mA, 10 at most). It sits above WAKE on the board, where the
+// (microamps) and J6 (PLT237/T10WH: 5.5 mA typical, 10 at most). It sits above WAKE on the board, where the
 // module's own 3.3 V (pins 19, 36, at the bottom) had to cross WAKE with a jumper; pin 16 is in
 // bank 6 with the LEDs alone, away from the crystal's (7) and the two serdes pins' (5, 4).
 // The rest is on the module itself: the 27 MHz crystal (pin 4), five LEDs (pins 15, 17..20,

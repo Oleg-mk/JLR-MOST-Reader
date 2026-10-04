@@ -132,7 +132,7 @@ three FPGA pins and nothing else:
 
 The two signals are shared on the module only with its empty LCD connector. Pin 28, the other
 half of pin 27's IOB pair, is left unwired; pin 42's other half has no pin on the QN88 package.
-Pin 16 is a supply: J6 takes 3 mA, 10 at most (PLT133), U3 microamps; the module's own 3.3 V
+Pin 16 is a supply: J6 (PLT237/T10WH) takes 5.5 mA typical, 10 at most, U3 microamps; the module's own 3.3 V
 pins sit at its bottom, and their line up to U3 and J6 had to cross /WAKE with a jumper on the
 board. Bank 6 carries only the LEDs besides it, away from the crystal's bank 7 and the serdes
 pins' banks 5 and 4. The rest is the module's own: the 27 MHz crystal on pin 4, five LEDs on

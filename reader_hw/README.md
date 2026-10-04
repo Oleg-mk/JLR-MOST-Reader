@@ -21,7 +21,7 @@ kicad-cli sch erc ...                0 errors, 0 warnings (check_all.py runs it)
 | 3 Кільце | J1 the TE MOST FOT header with its ferrites and Rext; R1, U1 74LVC1G34, R7; U1's output is the ring's TX through R2 and RX_BUF for U4 and U3 | less U2 (the mux), R9, C11 |
 | 4 Розв'язка | U3 74LVC1G125 on 3V3_SW: RX_BUF into the FPGA, Ioff while the FPGA is not running | less U9 (the retiming flip-flop) |
 | 5 FPGA | M1 Tang Nano 20K: RX_IN on pin 27 (IDES8), SPDIF_F on pin 42 (OSER8), 3V3_SW from pin 16 held high, 5 V through D3 with C63/C64/C85 | 2 signals of the listener's 24 |
-| 6 Вихід | J6 PLT133/T10W through R28, fed from 3V3_SW (3 mA, 10 at most) with C31/C32 | the T10 transmitter of block 9, no coax |
+| 6 Вихід | J6 PLT237/T10WH through R28, fed from 3V3_SW (5.5 mA typical, 10 at most) with C31 100n, C32 1u | the T10 transmitter of block 9, no coax |
 | 7 Тестові точки | TP6 3V3_AON, TP7 5V_SW, TP9 GND | unchanged |
 | 0 Про плату | the notes: what the board is and what is not on it | new |
 
@@ -31,9 +31,25 @@ was, now through an OSER8 on the same 1.26 ns grid - both on pins whose only oth
 is the module's empty LCD connector. Logs and ring captures go over the module's own USB-UART,
 the status over its LEDs.
 
-The TOSLINK transmitter runs from 3V3_SW, FPGA pin 16 held high by the gateware: 3 mA, 10 at
-most (PLT133), nothing a PLL in the listener's block 9 wanted a regulator of its own for. It is
-powered and driven by the same FPGA, so its input is never driven while its supply is off.
+The TOSLINK transmitter runs from 3V3_SW, FPGA pin 16 held high by the gateware: 5.5 mA
+typical, 10 at most, nothing a PLL in the listener's block 9 wanted a regulator of its own for.
+At 10 mA the pin gives VCCIO - 0.4 V at least (DS226, LVCMOS33 at DRIVE=24: 2.90 V at 3.30 V),
+3.21 V by Gowin's IBIS model; the part wants 2.7 V. It is powered and driven by the same FPGA, so its input is never
+driven high while its supply is down.
+
+The transmitter is Everlight's PLT237/T10WH (DPL-0000256 Rev.1, 2021): 2.7 to 5.0 V, -40 to
++85 C, 25 Mbps, the pins and the T10 housing of the PLT133/T10W the board was drawn for (pegs
+1.10 on 5.08, 2.62 typ in front of the pins; 8.66 +-0.40 from the pins to the front foot: the
+footprint's 2.63 and 8.76 are inside that). The PLT133/T10W is out of production (Everlight's last
+time buy 2019-09-30, Rutronik; DigiKey has none and takes no backorder, 2026-10-04). The listener
+went to Cliff's ORJ-5/OTJ-5 because its receiver went too; this board has none, and the Cliff
+part would have meant new pegs over the copper round J6 and -20 C at the cold end.
+
+C32 on 3V3_SW is 1u, not 10u: when the FPGA starts, pin 16 goes from its weak pull-up to a full
+drive and charges the rail's capacitance at the pin's short-circuit current, about 0.18 A (the
+IBIS model), out of the module's 3.3 V that also feeds VCCX and the SDRAM. 10u made that a
+0.3 ms pulse, 1u makes it 30 us; C31 (100n, within the data sheet's 7 mm) is the transmitter's
+own bypass.
 
 ## Not on this board, and why
 
@@ -81,7 +97,7 @@ The user's ceramics, each 100 nF: C83 (100 V) across the input behind F1, beside
 beside C64. TP10 is a second ground test point beside TP6.
 
 3V3_SW, the supply of U3 and J6, comes from module pin 7, FPGA pin 16 (LED1) held high by the
-gateware: U3 takes microamps and J6 3 mA, 10 at most (PLT133). The module's own 3.3 V pins (19,
+gateware: U3 takes microamps and J6 5.5 mA typical, 10 at most. The module's own 3.3 V pins (19,
 36) sit at its bottom, and their line up to U3 and J6 had to cross /WAKE with a jumper; pin 7
 sits above /WAKE, so nothing crosses it (the user's idea). Pin 16 is in bank 6 with the LEDs
 alone, away from the crystal's bank and the two serdes pins'. LED1 stays dark.
@@ -132,12 +148,12 @@ it.
 `make_fab.py` writes `fab/` from the board and the sheet, as the listener's does: the Gerbers and
 both drill files with a zip for the board house, the BOM and the pick-and-place, the same two in
 JLCPCB's format for an order with the SMD parts assembled (every part with the LCSC number
-chosen for the listener on 2026-10-01; all of the reader's parts are among them, none is
-consigned), and a README with the board's numbers and the order steps. Every date in the files
+chosen for the listener on 2026-10-01, the reader's parts among them, but C32's 1u 0805, C28323,
+chosen on 2026-10-04; none is consigned), and a README with the board's numbers and the order steps. Every date in the files
 is the board's title-block date, so the package is the same on every run, and `check_all.py`
 fails when it no longer matches the board or the commit. By hand after delivery: J1 (the FOT
-unit), J4 (Micro-Fit), J6 (TOSLINK; not stocked at LCSC or JLCPCB, bought from Mouser or
-DigiKey) and M1 (the Tang Nano, on its own pin headers). The CPL's rotations were read off each
+unit), J4 (Micro-Fit), J6 (TOSLINK, PLT237/T10WH: DigiKey 1080-PLT237/T10WH-ND; LCSC lists it as
+C17296340, none in stock on 2026-10-04) and M1 (the Tang Nano, on its own pin headers). The CPL's rotations were read off each
 chosen part's LCSC footprint: the community table's 180 for the electrolytics and for VSSOP-8 would
 have put C44, C45 and C63 in reversed and U4 across its pads (the pre-order review of 2026-10-03).
 

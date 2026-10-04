@@ -17,6 +17,8 @@ again after any change to the board: `check_all.py` fails while this folder does
 | `most_reader-pos.csv` | pick-and-place, SMD parts on the top, mm, KiCad's rotations |
 | `most_reader-bom-jlcpcb.csv` | JLCPCB's BOM: the parts it places, with their LCSC numbers |
 | `most_reader-cpl-jlcpcb.csv` | JLCPCB's pick-and-place: the same parts, JLCPCB's rotations |
+| `most_reader-schematic.pdf` | the schematic |
+| `most_reader-assembly.pdf` | the top side for assembly: every reference (also the eight hidden on the silk), the polarity marks, the outline |
 
 ## The board
 
@@ -33,7 +35,8 @@ again after any change to the board: `check_all.py` fails while this folder does
 - M1 (Tang Nano 20K) is soldered in on its own pin headers, 2 x 20 on 2.54 mm; no sockets. Its
   pin 16 (LED1, header 7) is 3V3_SW, the supply of U3 and J6, held high by the gateware: the
   module's own 3.3 V pins (19, 36) are not wired.
-- J6 (PLT133/T10W) runs on 3.0 to 5.0 V; here on 3V3_SW, 3 mA, 10 at most.
+- J6 (PLT237/T10WH) runs on 2.7 to 5.0 V, -40 to +85 C; here on 3V3_SW, 5.5 mA typical, 10 at
+  most. C32 on that rail is 1u, not more: FPGA pin 16 charges it when the FPGA starts.
 - C83 sits across the input behind F1, beside D2: 100 V.
 - Test points TP6, TP7, TP9, TP10 are bare pads, not parts.
 
@@ -43,7 +46,8 @@ again after any change to the board: `check_all.py` fails while this folder does
    ENIG, green mask with white silkscreen, and the number of boards (10 to start).
 2. **Assembly.** Top side, "Confirm parts placement" on. No part is consigned.
 3. **BOM and CPL.** Upload `most_reader-bom-jlcpcb.csv` and `most_reader-cpl-jlcpcb.csv`:
-   27 lines, 27 LCSC parts, all chosen for the listener board on 2026-10-01.
+   28 lines, 28 LCSC parts, chosen for the listener board on 2026-10-01
+   (C32's 1u, C28323, on 2026-10-04).
    JLCPCB shows the stock on upload; a part it holds too few of is bought from LCSC on the
    same BOM page (F1, C2925010, was the one it lacked then).
 4. **Placement preview.** Before paying, check pin 1 of U1, U3 (SOT-353), U4 (VSSOP-8),
@@ -55,5 +59,5 @@ again after any change to the board: `check_all.py` fails while this folder does
    parts, so a look-alike may not fit:
    - J1 (1-1394640-1): TE 1-1394640-1, the MOST pigtail FOT unit
    - J4 (VBAT_IN): Molex 43650-0200, Micro-Fit 3.0, right angle
-   - J6 (PLT133/T10W): Everlight PLT133/T10W, T10 housing (not stocked at LCSC: Mouser, DigiKey)
+   - J6 (PLT237/T10WH): Everlight PLT237/T10WH, T10 housing (DigiKey 1080-PLT237/T10WH-ND; LCSC C17296340 had none on 2026-10-04; the PLT133/T10W the board was drawn for is out of production)
    - M1 (Tang Nano 20K): Sipeed Tang Nano 20K, on its own pin headers

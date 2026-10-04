@@ -28,10 +28,13 @@ Every pinout below was checked against the maker's data sheet (in gen_listener.p
   TE MOST pigtail FOT footprint                     - TE customer view model drawing
                                                       C-2-2141577-1 B
   Tang Nano 20K header pads, outline               - Sipeed data sheet v1.3 p.5-6
-  PLT133/T10W (TOSLINK transmitter)                 - Everlight DPL-0000049 Rev.5 (1 Vin,
+  PLT237/T10WH (TOSLINK transmitter)                - Everlight DPL-0000256 Rev.1 (1 Vin,
                                                       2 Vcc, 3 GND): pin functions, the PCB
                                                       layout and the package drawing
-                                                      (third-angle)
+                                                      (third-angle), p.2-4; the T10 housing
+                                                      of the PLT133/T10W (DPL-0000049 Rev.5,
+                                                      out of production since 2019) that the
+                                                      footprint was first read from
 Pin ORDER on the custom symbols is chosen for the drawing; pin NUMBERS are the data-sheet ones.
 
 Run:  python gen_reader.py      (writes most_reader.kicad_sch and the project libraries next to it)
@@ -236,10 +239,10 @@ S = {
     "CONN2": ic("Conn_Power", "J", 7.62, 7.62, [
         ("1", "VBAT", "passive", "R", 2.54), ("2", "GND", "passive", "R", 5.08),
     ], "Battery input"),
-    "TOSLINK_TX": ic("PLT133", "J", 15.24, 12.7, [
+    "TOSLINK_TX": ic("PLT237", "J", 15.24, 12.7, [
         ("1", "VIN", "input", "L", 3.81),
         ("2", "VCC", "power_in", "T", 7.62), ("3", "GND", "power_in", "B", 7.62),
-    ], "TOSLINK transmitter, 2.7-5.5 V, 16 Mbps (Everlight PLT133/T10W: 1 Vin, 2 Vcc, 3 GND; 4 and 5 are the pegs)"),
+    ], "TOSLINK transmitter, 2.7-5.0 V, 25 Mbps (Everlight PLT237/T10WH: 1 Vin, 2 Vcc, 3 GND; 4 and 5 are the pegs)"),
     "TANG": ic("Tang_Nano_20K", "M", 30.48, 53.34, module_pins(),
                "Sipeed Tang Nano 20K, GW2AR-LV18QN88C8/I7"),
 }
@@ -694,14 +697,16 @@ def te_fot_body():
 
 
 def toslink_t10_footprint():
-    """PLT133/T10W (the housing is PLR135/T10's too); the drawing is third-angle (the bottom view,
-    pins numbered, sits under the front view; the side view, right of it, has the port face at its
-    left edge). 3 pins 0.80 on 2.54; two pegs 1.10 at 5.08 spacing 2.63 in front of the pins,
-    towards the port (the PCB layout); the body 9.70 wide, 13.50 deep, 10.00 high, the pins 2.39
-    from its rear face and 11.11 from the port face; its front foot 2.35 behind the port face,
-    8.76 in front of the pins - the side view dimensions the pins from it, and the board's edge
-    belongs there, the port overhanging it. The port faces +y; pin 1 is at -x, as seen from the
-    port (the front view)."""
+    """The T10 housing: PLT237/T10WH now (DPL-0000256 Rev.1 p.4), read first from the PLT133/T10W's
+    drawing (DPL-0000049 Rev.5, the PLR135/T10's housing too; out of production since 2019). The
+    drawings are third-angle (the bottom view, pins numbered, sits under the front view; the side
+    view, right of it, has the port face at its left edge). 3 pins 0.80 on 2.54; two pegs 1.10 at
+    5.08 spacing 2.63 in front of the pins, towards the port (the PCB layout; 2.62 typ on the
+    PLT237's); the body 9.70 wide, 13.50 deep, 10.00 high, the pins 2.39 from its rear face and
+    11.11 from the port face; its front foot 2.35 behind the port face, 8.76 in front of the pins
+    (8.66 +-0.40 on the PLT237's) - the side view dimensions the pins from it, and the board's
+    edge belongs there, the port overhanging it. The port faces +y; pin 1 is at -x, as seen from
+    the port (the front view)."""
     items = []
     for i in range(3):
         items.append(_fppad(str(i + 1), "thru_hole", "rect" if i == 0 else "circle", -2.54 + 2.54 * i, 0,
@@ -720,10 +725,11 @@ def toslink_t10_footprint():
     items.append(_fptext("board edge", 0, T10_FOOT - 0.6, "F.Fab", 0.5, "t10edgetxt"))
     items.append(_fpdot(-4.2, 1.0, "t10pin1"))
     items.append(_own_model(FP_T10))
-    return _fp(FP_T10, "Everlight PLT133/T10W transmitter (the PLR135/T10 receiver's TOSLINK housing): 3 pins on "
-               "2.54, two pegs 2.63 in front of them, towards the optical port, which faces +y; the board's "
-               "edge at the front foot, 8.76 in front of the pins, the port 2.35 past it; data sheet "
-               "DPL-0000049 Rev.5 p.4", "TOSLINK Everlight PLT133 PLR135", "through_hole",
+    return _fp(FP_T10, "Everlight PLT237/T10WH transmitter (the T10 TOSLINK housing of PLT133/T10W and "
+               "PLR135/T10): 3 pins on 2.54, two pegs 2.63 in front of them, towards the optical port, which "
+               "faces +y; the board's edge at the front foot, 8.76 in front of the pins, the port 2.35 past "
+               "it; data sheets DPL-0000256 Rev.1 p.4, DPL-0000049 Rev.5 p.4", "TOSLINK Everlight PLT237 PLT133",
+               "through_hole",
                items, y0 - 1.6, y1 + 1.6)
 
 
@@ -1060,7 +1066,7 @@ def fpga_block(sh):
             sh.lbl(left[n], p, 10.16, "L")
         elif n == "7":
             # 3V3_SW comes from FPGA pin 16 (LED1), driven high by the gateware: U3 and J6 take
-            # microamps and 3..10 mA. The module's own 3V3 (pins 19, 36) sits at the bottom of
+            # microamps and 5.5 mA typical, 10 at most. The module's own 3V3 (pins 19, 36) sits at the bottom of
             # the module and its line to U3 and J6 had to cross WAKE; from pin 7 it does not
             # (the user's idea, 2026-10-03), and the board has no jumper left.
             sh.wire(p, (p[0] - 7.62, p[1])); sh.up("3V3_SW", (p[0] - 7.62, p[1]), 0)
@@ -1118,20 +1124,23 @@ def output_block(sh):
     sh.wire(n1, r28.p("1"))
     # the body is narrow: the reference above its left corner, the value to its right (no pins there)
     xj, yj = r28.p("2")[0] + 7.62 + 10.16, n1[1] + 2.54
-    j6 = sh.at_pin("TOSLINK_TX", "J6", "PLT133/T10W", "1", (r28.p("2")[0] + 7.62, n1[1]), fp=f"{LIB}:{FP_T10}",
+    j6 = sh.at_pin("TOSLINK_TX", "J6", "PLT237/T10WH", "1", (r28.p("2")[0] + 7.62, n1[1]), fp=f"{LIB}:{FP_T10}",
                    ref_at=(xj - 7.62, yj - 7.62), val_at=(xj + 8.89, yj), fjust=("left bottom", "left"))
     sh.wire(r28.p("2"), j6.p("1"))
     vcc = j6.p("2")
     top = (vcc[0], round(vcc[1] - 6.35, 3))
     sh.up("3V3_SW", vcc, 6.35)
     c31 = sh.at_pin("C", "C31", "100n", "1", (top[0] + 10.16, top[1]), fp=SMD["C"])
-    c32 = sh.at_pin("C", "C32", "10u", "1", (top[0] + 20.32, top[1]), fp="Capacitor_SMD:C_0805_2012Metric")
+    # C32 1u, not 10u: pin 16 charges it when the FPGA starts, at the pin's short-circuit current
+    # (about 0.18 A, the IBIS model), from the module's 3.3 V that also feeds VCCX and the SDRAM;
+    # 1u makes that pulse 30 us instead of 300 (2026-10-04)
+    c32 = sh.at_pin("C", "C32", "1u", "1", (top[0] + 20.32, top[1]), fp="Capacitor_SMD:C_0805_2012Metric")
     sh.wire(top, c31.p("1"), c32.p("1"))
     sh.gnd(c31.p("2")); sh.gnd(c32.p("2"))
     sh.gnd(j6.p("3"), 2.54)
-    sh.text("SPDIF_F (FPGA 42) -> R28 -> J6 PLT133/T10W: один вихід, лише TOSLINK (коаксіального J7 немає).", 212.09, 242.57, 1.27)
-    sh.text("Vcc передавача з 3V3_SW (вивід FPGA 16): 3 мА, до 10 мА (PLT133); C31/C32 біля J6. Корпус T10: виводи 8.5 мм від краю,", 212.09, 246.38, 1.27)
-    sh.text("лапка на краю, порт виступає на 2.6 мм (креслення Everlight, третій кут; перевірено в MOST25-to-AUDIO v1.4).", 212.09, 250.19, 1.27)
+    sh.text("SPDIF_F (FPGA 42) -> R28 -> J6 PLT237/T10WH: один вихід, лише TOSLINK (коаксіального J7 немає).", 212.09, 242.57, 1.27)
+    sh.text("Vcc передавача з 3V3_SW (вивід FPGA 16): 5.5 мА типово, до 10 мА. C31 100n біля J6; C32 лише 1u: при старті", 212.09, 246.38, 1.27)
+    sh.text("його заряджає ніжка FPGA. Корпус T10: виводи 8.76 мм від краю, лапка на краю, порт за краєм на 2.35 мм.", 212.09, 250.19, 1.27)
 
 
 def testpoint_block(sh):

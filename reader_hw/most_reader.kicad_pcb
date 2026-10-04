@@ -4580,8 +4580,8 @@
 		(layer "F.Cu")
 		(uuid "64070dd6-1183-53e0-92e3-08d573c81c37")
 		(at 68.776 20.5 90)
-		(descr "Everlight PLT133/T10W transmitter (the PLR135/T10 receiver's TOSLINK housing): 3 pins on 2.54, two pegs 2.63 in front of them, towards the optical port, which faces +y; the board's edge at the front foot, 8.76 in front of the pins, the port 2.35 past it; data sheet DPL-0000049 Rev.5 p.4")
-		(tags "TOSLINK Everlight PLT133 PLR135")
+		(descr "Everlight PLT237/T10WH transmitter (the T10 TOSLINK housing of PLT133/T10W and PLR135/T10): 3 pins on 2.54, two pegs 2.63 in front of them, towards the optical port, which faces +y; the board's edge at the front foot, 8.76 in front of the pins, the port 2.35 past it; data sheets DPL-0000256 Rev.1 p.4, DPL-0000049 Rev.5 p.4")
+		(tags "TOSLINK Everlight PLT237 PLT133")
 		(property "Reference" "J6"
 			(at -4 4.76 0)
 			(layer "F.SilkS")
@@ -4593,7 +4593,7 @@
 				)
 			)
 		)
-		(property "Value" "PLT133/T10W"
+		(property "Value" "PLT237/T10WH"
 			(at 0 12.71 90)
 			(layer "F.Fab")
 			(uuid "9614d674-b95a-50c0-92a5-09f986d409da")
@@ -5100,7 +5100,7 @@
 				)
 			)
 		)
-		(property "Value" "10u"
+		(property "Value" "1u"
 			(at 0 1.68 0)
 			(layer "F.Fab")
 			(uuid "f975f3ae-12fb-58de-b284-03f5776ba704")

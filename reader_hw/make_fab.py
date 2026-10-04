@@ -7,6 +7,8 @@ most_reader.kicad_pcb and the sheet:
   * the pick-and-place file of the SMD parts;
   * the same BOM and pick-and-place in JLCPCB's format, for an order with SMD assembly: every
     SMD part carries the LCSC number chosen below, every rotation JLCPCB's correction;
+  * the schematic as a PDF, and an assembly drawing of the top (every reference, the silk's
+    polarity marks, the outline) for the parts soldered by hand;
   * a README with the board's numbers, taken from the board itself, and the order steps.
 
 Every date KiCad writes into these files becomes the board's title-block date. The package
@@ -37,7 +39,8 @@ LAYERS = "F.Cu,B.Cu,F.Paste,F.Silkscreen,F.Mask,B.Mask,Edge.Cuts"
 STAMP = re.compile(r"(\d{4}-\d{2}-\d{2})([T ])\d{2}:\d{2}:\d{2}([+-]\d{2}:\d{2})?")
 
 # The part JLCPCB places for each BOM line (value, footprint) - chosen 2026-10-01 for the listener
-# board (MOST25-to-AUDIO) from JLCPCB's parts library, the reader's parts all among them: a basic part where one fits, the maker's own part for every IC. A BOM line
+# board (MOST25-to-AUDIO) from JLCPCB's parts library, the reader's parts among them but C32's 1u
+# 0805 (2026-10-04): a basic part where one fits, the maker's own part for every IC. A BOM line
 # missing here stops the script, so a new part cannot reach the order without a decision.
 R, C6, C8, C12 = "R_0603_1608Metric", "C_0603_1608Metric", "C_0805_2012Metric", "C_1210_3225Metric"
 LCSC = {
@@ -49,6 +52,7 @@ LCSC = {
     ("47u 10V", C12): ("C77101", "Murata GRM32ER61C476KE15L, 16 V X5R"),
     ("1u", C6): ("C15849", "Samsung CL10A105KB8NNNC, 50 V X5R"),
     ("10u", C8): ("C15850", "Samsung CL21A106KAYNNNE, 25 V X5R"),
+    ("1u", C8): ("C28323", "Samsung CL21B105KBFNNNE, 50 V X7R"),    # C32, 2026-10-04: a basic part
     ("100u 63V", "CP_Elec_10x10.5"): ("C53330124", "SamYoung CLZ 63V 100uF 10x10, 125 C"),
     ("100u 16V", "CP_Elec_6.3x7.7"): ("C359220", "SamYoung BLA 16V 100uF 6.3x6"),
     ("SS34", "D_SMA"): ("C8678", "MDD SS34"),
@@ -112,6 +116,15 @@ def normalise(path, date):
     path.write_text(t, encoding="utf-8", newline="\n")
 
 
+def normalise_pdf(path, date):
+    """KiCad's PDF creation stamp, (D:YYYY:MM:DD:hh:mm:ss), -> the board's date at midnight; the
+    same length, so the PDF's offsets hold."""
+    y, m, d = date.split("-")
+    b = path.read_bytes()
+    b = re.sub(rb"\(D:\d{4}:\d{2}:\d{2}:\d{2}:\d{2}:\d{2}\)", f"(D:{y}:{m}:{d}:00:00:00)".encode(), b)
+    path.write_bytes(b)
+
+
 def zip_files(target, files, date):
     stamp = tuple(int(v) for v in date.split("-")) + (0, 0, 0)
     with zipfile.ZipFile(target, "w") as z:
@@ -127,7 +140,8 @@ def zip_files(target, files, date):
 HAND_PARTS = {
     "TE_MOST_Pigtail_FOT_2+0": "TE 1-1394640-1, the MOST pigtail FOT unit",
     "Molex_Micro-Fit_3.0_43650-0200_1x02_P3.00mm_Horizontal": "Molex 43650-0200, Micro-Fit 3.0, right angle",
-    "Everlight_TOSLINK_T10": "Everlight PLT133/T10W, T10 housing (not stocked at LCSC: Mouser, DigiKey)",
+    "Everlight_TOSLINK_T10": "Everlight PLT237/T10WH, T10 housing (DigiKey 1080-PLT237/T10WH-ND; LCSC C17296340 "
+                             "had none on 2026-10-04; the PLT133/T10W the board was drawn for is out of production)",
     "Sipeed_TangNano20K": "Sipeed Tang Nano 20K, on its own pin headers",
 }
 
@@ -195,6 +209,8 @@ again after any change to the board: `check_all.py` fails while this folder does
 | `most_reader-pos.csv` | pick-and-place, SMD parts on the top, mm, KiCad's rotations |
 | `most_reader-bom-jlcpcb.csv` | JLCPCB's BOM: the parts it places, with their LCSC numbers |
 | `most_reader-cpl-jlcpcb.csv` | JLCPCB's pick-and-place: the same parts, JLCPCB's rotations |
+| `most_reader-schematic.pdf` | the schematic |
+| `most_reader-assembly.pdf` | the top side for assembly: every reference (also the eight hidden on the silk), the polarity marks, the outline |
 
 ## The board
 
@@ -211,7 +227,8 @@ again after any change to the board: `check_all.py` fails while this folder does
 - M1 (Tang Nano 20K) is soldered in on its own pin headers, 2 x 20 on 2.54 mm; no sockets. Its
   pin 16 (LED1, header 7) is 3V3_SW, the supply of U3 and J6, held high by the gateware: the
   module's own 3.3 V pins (19, 36) are not wired.
-- J6 (PLT133/T10W) runs on 3.0 to 5.0 V; here on 3V3_SW, 3 mA, 10 at most.
+- J6 (PLT237/T10WH) runs on 2.7 to 5.0 V, -40 to +85 C; here on 3V3_SW, 5.5 mA typical, 10 at
+  most. C32 on that rail is 1u, not more: FPGA pin 16 charges it when the FPGA starts.
 - C83 sits across the input behind F1, beside D2: 100 V.
 - Test points TP6, TP7, TP9, TP10 are bare pads, not parts.
 
@@ -221,7 +238,8 @@ again after any change to the board: `check_all.py` fails while this folder does
    ENIG, green mask with white silkscreen, and the number of boards (10 to start).
 2. **Assembly.** Top side, "Confirm parts placement" on. No part is consigned.
 3. **BOM and CPL.** Upload `most_reader-bom-jlcpcb.csv` and `most_reader-cpl-jlcpcb.csv`:
-   {jlc['lines']} lines, {jlc['codes']} LCSC parts, all chosen for the listener board on 2026-10-01.
+   {jlc['lines']} lines, {jlc['codes']} LCSC parts, chosen for the listener board on 2026-10-01
+   (C32's 1u, C28323, on 2026-10-04).
    JLCPCB shows the stock on upload; a part it holds too few of is bought from LCSC on the
    same BOM page (F1, C2925010, was the one it lacked then).
 4. **Placement preview.** Before paying, check pin 1 of U1, U3 (SOT-353), U4 (VSSOP-8),
@@ -250,6 +268,11 @@ def main():
     run("sch", "export", "bom", "--output", str(OUT / "most_reader-bom.csv"),
         "--fields", "Reference,Value,Footprint,${QUANTITY}", "--labels", "Refs,Value,Footprint,Qty",
         "--group-by", "Value,Footprint", "--ref-range-delimiter", "", str(SCH))
+    run("sch", "export", "pdf", "--black-and-white", "--output", str(OUT / "most_reader-schematic.pdf"), str(SCH))
+    run("pcb", "export", "pdf", "--layers", "F.Fab,F.Silkscreen,Edge.Cuts", "--mode-single", "--scale", "0",
+        "--exclude-value", "--black-and-white", "--output", str(OUT / "most_reader-assembly.pdf"), str(PCB))
+    for p in OUT.glob("*.pdf"):
+        normalise_pdf(p, n["date"])
     fab = sorted(p for p in OUT.iterdir() if p.suffix in (".gtl", ".gbl", ".gtp", ".gto", ".gts", ".gbs", ".gm1",
                                                          ".drl", ".gbrjob"))
     for p in fab:

@@ -12,7 +12,7 @@ IO_PORT "clk27" IO_TYPE=LVCMOS33 PULL_MODE=UP BANK_VCCIO=3.3;
 IO_LOC "rx_in" 27;                 // LCD_B7
 IO_PORT "rx_in" IO_TYPE=LVCMOS33 PULL_MODE=NONE BANK_VCCIO=3.3;
 
-// SPDIF_F, header pin 25: R28 (33 ohm) into J6 (PLT133/T10W, a CMOS input), OSER8
+// SPDIF_F, header pin 25: R28 (33 ohm) into J6 (PLT237/T10WH, a TTL input), OSER8
 IO_LOC "spdif" 42;                 // LCD_R3
 IO_PORT "spdif" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
 
@@ -21,7 +21,7 @@ IO_LOC "pa_en" 51;                 // PA_EN
 IO_PORT "pa_en" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
 
 // 3V3_SW, header pin 7: U3 and J6 run from it (held high; LED1 stays dark). The strongest drive:
-// J6 takes 3 mA, 10 at most (PLT133), and wants 3.0 V or more
+// J6 (PLT237/T10WH) takes 5.5 mA typical, 10 at most, and wants 2.7 V or more
 IO_LOC "sw_vcc" 16;                // LED1
 IO_PORT "sw_vcc" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=24 BANK_VCCIO=3.3;
 
