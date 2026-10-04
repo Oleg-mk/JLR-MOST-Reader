@@ -27,4 +27,10 @@ set_option -timing_driven 1
 # placement left clk_s at 99.7 MHz (0.7 % over 99), these give about 111 MHz (12 %)
 set_option -place_option 1
 set_option -route_option 1
+# the bitstream is read from the flash at 25 MHz (250/10) instead of the default 2.5 MHz: one
+# bit a clock, 7.26 Mbit took 2.9 s to configure after the ring woke the FPGA, long enough to
+# miss the head unit's Connect; 290 ms now (UG290 Table 3-3). Compression (-bit_compress) is
+# accepted by this gw_sh but leaves the bitstream uncompressed (its header says Compress: OFF),
+# so it is not set. The bench's COLD measurement (LOGGING.md) proves the figure.
+set_option -loading_rate 250/10
 run all

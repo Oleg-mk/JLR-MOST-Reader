@@ -244,9 +244,10 @@ Both are measured on the bench before the trip, without the laptop: DARK = the l
 WAKE low (U4's R6 x C9, 100k x 1u, +/-10 % and the part's own factor), COLD = the first RX
 edge to 3V3_SW rising (FPGA pin 16 drives it high only once the FPGA is in user mode, so its
 rise is the end of the cold start, measurable at J6's supply). Without the
-laptop nothing of this exists, and the gateware behaves as before. (If COLD comes out in
-seconds rather than a few hundred ms, the bitstream's loading rate and compression are a
-product fix, not a log fix: the head unit's Connect would be missed.)
+laptop nothing of this exists, and the gateware behaves as before. (The bitstream was read from
+the flash at Gowin's default 2.5 MHz, 2.9 s to configure: long enough to miss the head unit's
+Connect after every wake. It is read at 25 MHz now, 290 ms by Gowin's UG290; the bench's COLD
+measurement gives the real figure, flash and buck start included.)
 
 ## Commands from the PC
 

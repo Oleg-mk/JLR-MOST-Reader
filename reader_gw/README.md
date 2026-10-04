@@ -160,6 +160,15 @@ changes; the log sends it in every STATUS), runs `gw_sh build.tcl` and then `che
 which fails when a clock misses its constraint or keeps less than 10 % margin. Place and route
 run in Gowin's timing modes (`place_option 1`, `route_option 1`).
 
+Cold start: the FPGA configures itself from the module's SPI flash every time the ring wakes it
+(5V_SW comes with WAKE). Gowin reads the flash one bit a clock at 2.5 MHz by default: the
+7.26 Mbit bitstream took 2.9 s, long enough to miss the head unit's Connect after every wake.
+`build.tcl` sets the loading rate to 25 MHz (`-loading_rate 250/10`): 290 ms (Gowin UG290,
+Table 3-3; the limit is 66.6 MHz, 25 is well inside it). Compression would halve it again (58 %
+of the bitstream is zero bytes), but this gw_sh accepts `-bit_compress` and still writes an
+uncompressed bitstream (its header says `Compress: OFF`), so it is not set. The bench's COLD
+measurement (LOGGING.md) gives the real figure, the buck's start and the flash included.
+
 ### Timing on the chip
 
 The first build of this top (2026-10-03) reached 60 MHz against 99: 621 paths missed, all of
