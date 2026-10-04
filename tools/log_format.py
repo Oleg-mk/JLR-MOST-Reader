@@ -42,7 +42,7 @@ def xor(data) -> int:
     return x
 
 
-@dataclass(slots=True)
+@dataclass
 class Record:
     kind: int
     seq: int

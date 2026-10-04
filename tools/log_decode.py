@@ -3,6 +3,7 @@
 
     python tools/log_decode.py logs/20261010-183000-1.bin [logs/20261010-183000-2.bin ...]
     python tools/log_decode.py logs/20261010-183000          (every segment of that trip, in order)
+    python tools/log_decode.py                               (the newest trip in ring_log's logs/, every segment)
 
 The segments of one trip (ring_log starts a new one on every reconnect; the FPGA runs on) are
 read as one stream, a chunk at a time, so a trip of hours needs no more memory than a minute.
@@ -43,6 +44,8 @@ sys.path.insert(0, str(ROOT / "reader_gw" / "sim"))
 import log_format as LF                                                    # noqa: E402
 from virtual_most_source.control import classify_block                     # noqa: E402
 
+# ring_log.py's folder for the trip's files: logs/ at the repository's root, or beside this file
+LOGS = ROOT / "logs" if (ROOT / "reader_gw").is_dir() else HERE / "logs"
 STATUS_US = 21183                         # 2^21 clocks of 99 MHz
 CHUNK = 1 << 20
 
@@ -138,8 +141,8 @@ def trip_files(args):
 def decode(files, out: Path):
     out.mkdir(exist_ok=True)
     kinds, holes, builds = Counter(), [], set()
-    nbytes = skipped = 0
-    st_first = st_last = None
+    nbytes = skipped = lead = 0
+    lost = [0, None]                      # the FPGA's drops summed over the trip; the last STATUS's counter
     rep = Replay()
     dumps, dump_cur, dump_last_n = [], None, -1
     ft = open(out / "telegrams.txt", "w", encoding="utf-8")
@@ -162,7 +165,7 @@ def decode(files, out: Path):
         dump_cur = None
 
     def handle(r, prev_status):
-        nonlocal st_first, st_last, dump_cur, dump_last_n
+        nonlocal dump_cur, dump_last_n
         kinds[LF.NAME[r.kind]] += 1
         rep.record(r)
         f = r.f
@@ -179,6 +182,10 @@ def decode(files, out: Path):
                 ft.write(f"{r.ts:>12} us  frame {f['frames']:>9}  ({why}) {f['ctrl'].hex()}\n")
         elif r.kind == LF.STATUS:
             builds.add(f["build"])
+            if lost[1] is not None and f["lost"] != lost[1]:
+                d = f["lost"] - lost[1]
+                lost[0] += d if d > 0 else f["lost"]      # lower: the FPGA started anew
+            lost[1] = f["lost"]
             last = prev_status[0]
             if last is not None and ((r.ts - last.ts) & 0xFFFFFFFF) > 2 * STATUS_US:
                 holes.append(f"at {last.ts} us: {(r.ts - last.ts) & 0xFFFFFFFF} us between two STATUS")
@@ -192,9 +199,6 @@ def decode(files, out: Path):
                      f"{' '.join(map(str, f['peaks']))},{f['chmask']:016x},{f['dstate']:04x},"
                      f"{f['dark_ms']},{f['cold_ms']}\n")
             prev_status[0] = r
-            if st_first is None:
-                st_first = r
-            st_last = r
         elif r.kind == LF.EVENT:
             c, arg, lo = f["code"], f["arg"], f["left_out"]
             extra = f" (cause {LF.CAUSES.get(arg & 7)})" if c in (0x10, 0x13) else ""
@@ -229,6 +233,8 @@ def decode(files, out: Path):
                 chunk = fh.read(CHUNK)
                 recs = p.feed(chunk) if chunk else p.flush()
                 for r in recs:
+                    if prev is None:
+                        lead += r.offset          # the port opened mid-record: not a fault of the line
                     if prev is not None and (r.seq != (prev.seq + 1) & 0xFF or r.offset != prev.offset + len(prev.raw)):
                         holes.append(f"{path.name} after byte {prev.offset}: {(r.seq - prev.seq - 1) & 0xFF} records by "
                                      f"sequence, {r.offset - prev.offset - len(prev.raw)} bytes not in records")
@@ -267,20 +273,24 @@ def decode(files, out: Path):
                 fr.append("--" if e is None else f"{e & 0xFF:02x}")
             if fr:
                 frames.append(fr)
-            (out / f"dump_{k}_frames.txt").write_text(head + "\n".join("".join(f) for f in frames) + "\n")
+            (out / f"dump_{k}_frames.txt").write_text(head + "\n".join("".join(f) for f in frames) + "\n",
+                                                      encoding="utf-8")
         else:
             (out / f"dump_{k}_runs.txt").write_text(
-                head + "\n".join("- - -" if e is None else f"{e >> 7 & 1} {e & 127} {e >> 8}" for e in ents) + "\n")
+                head + "\n".join("- - -" if e is None else f"{e >> 7 & 1} {e & 127} {e >> 8}" for e in ents) + "\n",
+                encoding="utf-8")
 
     rtext = rep.report()
-    (out / "replay.txt").write_text(rtext)
-    fpga_lost = (st_last.f["lost"] - st_first.f["lost"]) & 0xFFFF if st_first and st_last else 0
+    (out / "replay.txt").write_text(rtext, encoding="utf-8")
+    fpga_lost = lost[0]
     lines = [f"{', '.join(p.name for p in files)}: {nbytes} bytes, {sum(kinds.values())} records {dict(kinds)}",
-             f"bytes not in records: {skipped}", f"holes: {len(holes)}"] + ["  " + h for h in holes[:50]] + \
+             f"bytes not in records: {skipped - lead}",
+             f"bytes before each segment's first record (the port opened mid-record): {lead}",
+             f"holes: {len(holes)}"] + ["  " + h for h in holes[:50]] + \
             [f"records the FPGA dropped: {fpga_lost}", f"build IDs: {[f'{b:08X}' for b in sorted(builds)]}",
              f"dumps: {len(dumps)}", rtext.splitlines()[-1]]
-    (out / "summary.txt").write_text("\n".join(lines) + "\n")
-    print("\n".join(lines[:3] + lines[-4:]))
+    (out / "summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines[:4] + lines[-4:]))
     return rtext
 
 
@@ -291,12 +301,21 @@ def decode_file(path: Path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("logs", nargs="+", help=".bin files of one trip, or the trip's stamp")
+    ap.add_argument("logs", nargs="*", help=".bin files of one trip, or the trip's stamp (none: the newest "
+                                            f"trip in {LOGS})")
     a = ap.parse_args()
+    if not a.logs:
+        bins = sorted(LOGS.glob("*-*-*.bin"))
+        if not bins:
+            sys.exit(f"no .bin files in {LOGS}")
+        a.logs = [re.sub(r"-\d+\.bin$", "", str(bins[-1]))]
     files = trip_files(a.logs)
     if not files:
         sys.exit("no .bin files")
     stem = re.sub(r"-\d+$", "", files[0].with_suffix("").name)
+    if all(Path(x).suffix == ".bin" for x in a.logs):
+        # segments given one by one: a folder of their own, the whole trip's stays as it is
+        stem += "-" + "-".join(re.search(r"-(\d+)\.bin$", f.name).group(1) for f in files)
     decode(files, files[0].parent / f"{stem}.d")
 
 

@@ -20,7 +20,9 @@ from pathlib import Path
 from typing import List, Tuple
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
+# the repository's root when this file sits in it (reader_gw/sim); in kit/3_laptop the package and
+# gain_tables sit beside it, and the folder may be a drive's root
+ROOT = next((d for d in HERE.parents if (d / "virtual_most_source").is_dir()), HERE)
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(HERE))
 

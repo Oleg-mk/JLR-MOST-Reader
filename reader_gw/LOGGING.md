@@ -295,36 +295,50 @@ between 102 and 125 MHz. So:
 
 ## The laptop's side
 
-- `tools/ring_log.py`: three threads. The reader only reads (3 000 000 baud, 1 MB driver
-  buffer, never purged or re-set while open) and queues chunks with the PC's time. The writer
-  appends the bytes alone to `logs/<date>-<time>.bin` with a `.idx` of (offset, PC time), new
-  files on every reconnect. The decoder shows a summary at most 4 times a second and skips
+- `tools/ring_log.py`, on Windows 10 or 11 and on macOS (Apple silicon too), Python 3.8 or
+  later: a reader, a writer, a sender and a beeper thread beside the main one. The reader only
+  reads (3 000 000 baud, a 1 MB driver buffer on Windows, never purged or re-set while open) and
+  queues chunks with the PC's time. The writer appends the bytes alone to
+  `logs/<date>-<time>-<n>.bin` with a `.idx` of (offset, PC time), a new n on every reconnect;
+  the marks and notes go to `logs/<date>-<time>.marks.txt`. The main thread shows a summary at most 4 times a second and skips
   ahead if it falls behind; it never touches the files. A watchdog: no byte for 250 ms, or any
   error, closes the port and looks for the bridge again every 0.5 s (by its USB ID, interface
-  B, never a fixed COM number). It beeps on: port lost, a hole, the FPGA's drop counter
-  rising, the FPGA restarting. It keeps the laptop awake while it runs, and sends the
-  keepalive. Keys: m = a mark (one keystroke, a beep, a big counter on the screen; the note is
-  typed by a passenger or spoken into a phone memo started with the log) with a frames
-  capture, r / f = a capture of runs / frames, t = the soak test.
+  B, never a fixed COM number; on macOS the later of the bridge's two /dev/cu.usbserial
+  ports). It beeps on: port lost, a hole, the FPGA's drop counter rising, the FPGA restarting,
+  each with its own tone. It keeps the laptop and its screen awake while it runs (macOS:
+  caffeinate), and sends the keepalive. Keys: m = a mark (one keystroke, a beep, a big counter
+  on the screen; the note is typed by a passenger or spoken into a phone memo started with the
+  log) with a frames capture, r / f = a capture of runs / frames, t = the soak test (stopped
+  again when the tool quits); the same keys in a Ukrainian or Russian layout. --auto-mark N
+  marks every N s. Arguments that should hold for every run go in a record_args.txt beside the
+  kit's launchers. `kit/3_laptop` carries it with its launchers and a README in Ukrainian.
 - `tools/log_decode.py`: a log into a telegram trace, the blocks, the status timeline, the
-  events, the dumps (runs as tools/capture_analyse.py reads them, frames as channels), and the
-  replay: the raw blocks through ctrl_model.py against the logged decisions.
+  events, the dumps (runs a line each, frames as channels), and the replay: the raw blocks
+  through ctrl_model.py against the logged decisions. With no argument, the newest trip.
 
 ## Before the car
 
-1. Check the bridge: Device Manager's hardware ID (REV_0500 or REV_0700) and the debugger
-   firmware (2025030317 or later) on the module soldered to the reader.
+1. Check the bridge: the debugger firmware, 2025030317 or later, on the module soldered to the
+   reader (the last 10 digits of its USB serial number: Device Manager, USB Converter A,
+   Details, Parent; macOS: `ioreg -p IOUSB -l -w0`); and on Windows its hardware ID (REV_0500 or
+   REV_0700, from the listener's notes, no outside source).
 2. Measure DARK and COLD (above).
 3. The soak test, on the trip laptop on battery, with the trip's cable and port and power
    plan: 2 hours paced at the trip's load (fill with a 250 us gap, about 168 kB/s) with a mark
-   every 5 s; 10 minutes at the full line; the module on bench 5 V through header pin 21 with
+   every 5 s (--auto-mark 5); 10 minutes at the full line; the module on bench 5 V through header pin 21 with
    USB pulled for a minute and put back (the port must come back by itself); one laptop sleep
-   and wake. Pass: no hole, no bad X, no FPGA drop, no STATUS gap over 25 ms.
+   and wake. Pass: no hole, no bad X (log_decode's "bytes not in records"; the bytes before
+   each segment's first record, where the port opened mid-record, are counted apart), no FPGA
+   drop, no STATUS gap over 25 ms.
 4. **Only a native USB-A port on the laptop, with an A-to-C cable.** 5V_SW holds the module's
    VBUS up through D3 and the module's fuse, so a USB-C laptop port (or a C-to-A dongle, or a
    passive hub on one) that drops during the drive cannot attach again while the ring is
-   awake. A USB-A host can.
-5. The laptop on its own battery, lid-close "do nothing", USB selective suspend off, sleep off;
+   awake. A USB-A host can. A MacBook has USB-C only: it goes on a trip only after step 3's
+   pull-and-replug passes on that Mac (else through a self-powered hub with USB-A ports, itself
+   tested so, or a Windows laptop with USB-A). 3 000 000 baud through Apple's FTDI driver is
+   also proved only by step 3 on the Mac.
+5. The laptop on its own battery, lid-close "do nothing" (a MacBook's lid stays open: closed,
+   it sleeps on battery whatever the software asks), USB selective suspend off, sleep off;
    one passive cable, as short as the route allows. Start the logger with the car locked and
    the ring asleep, so the first wake is in the file. Never open the port in another terminal
    program.
