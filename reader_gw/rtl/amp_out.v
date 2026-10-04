@@ -59,7 +59,18 @@ module amp_out (
     input  wire        rate48,              // the ring runs at 48 kHz (S/PDIF channel status)
     output wire [7:0]  spdif_word,          // the line, 8 samples a clock, bit 0 first (OSER8)
     output wire        spdif,               // the line's level
-    output wire        overrun              // the engine missed a frame (sticky)
+    output wire        overrun,             // the engine missed a frame (sticky)
+    // the log
+    output wire        cq_ok,               // the command bus as registered here
+    output wire [7:0]  cq_cmd,
+    output wire [55:0] cq_p,
+    output wire        commit_ok,           // pulse: a commit switched to its set (tag commit_tag)
+    output wire        commit_bad,          // pulse: a commit found its set incomplete
+    output wire [7:0]  commit_tag,
+    output wire        bank_sw,             // pulse: the engine took the new bank
+    output wire        estart,              // pulse: the engine starts on in_w
+    output wire [143:0] in_w_o,
+    output wire [47:0] out_w_o
 );
     integer k, s;
 
@@ -71,6 +82,7 @@ module amp_out (
     reg [7:0]  cmd_q /* synthesis syn_preserve = 1 */;
     reg [55:0] p_q   /* synthesis syn_preserve = 1 */;
     always @(posedge clk) begin ok_q <= cmd_ok & ~rst; cmd_q <= cmd; p_q <= cmd_p; end
+    assign cq_ok = ok_q; assign cq_cmd = cmd_q; assign cq_p = p_q;
     wire [7:0] p0 = p_q[55:48];
     wire       p0_ok = p0[7:6] == 2'd0 && !p0[3] && p0[5:4] != 2'd3 && p0[1:0] != 2'd1;
     // decoded once more: a strobe per stream and the fields, so the writes
@@ -192,6 +204,9 @@ module amp_out (
         a_bit  <= {{(DSP_C_IMAGE-1){1'b0}}, 1'b1} << p_q[53:48];
     end
     wire [DSP_C_IMAGE-1:0] have_n = (same_q ? have : {DSP_C_IMAGE{1'b0}}) | a_bit;
+    assign commit_ok  = w03 && w03_c && (&have_n);
+    assign commit_bad = w03 && w03_c && !(&have_n);
+    assign commit_tag = w03_t;
     wire        running;
     always @(posedge clk) begin
         if (w03) begin
@@ -217,6 +232,10 @@ module amp_out (
     reg  [31:0] c_q;
     wire [47:0] out_w;
     wire        start = run && fstart;     // run && tick && phase_n == 0, made by nco_frame with the tick
+    assign bank_sw = pend && !running;
+    assign estart  = start;
+    assign in_w_o  = in_w;
+    assign out_w_o = out_w;
     always @(posedge clk) c_q <= cmem[{bank_r, c_addr}];
     dsp_core u_dsp (.clk(clk), .rst(rst), .start(start), .in_w(in_w), .c_addr(c_addr),
                     .c_q(c_q), .out_w(out_w), .running(running), .overrun(overrun));

@@ -16,6 +16,8 @@
 // (pin 51, header 29, not wired), held low so the amplifier stays shut down.
 // Supply and ground through the header: 5V_SW into pin 21 (through D3), ground on pins 20, 22
 // and 35; the module's 3.3 V pins are not used.
+// The ring log (reader_gw/LOGGING.md) goes over the module's own USB-UART: pin 69 (PIN69_SYS_TX)
+// to the BL616 bridge, pin 70 (PIN70_SYS_RX) from it, 3 Mbaud. Neither is on a header.
 //
 // Clocks, as MOST25-to-AUDIO's top:
 //   27 MHz crystal -> rPLL: CLKOUT = 27 x 44 / 3 = 396 MHz (VCO 792 MHz, ODIV 2;
@@ -31,8 +33,11 @@ module top_tangnano20k (
     output wire       spdif,         // pin 42  SPDIF_F to R28, J6
     output wire       pa_en,         // pin 51  the module's audio amplifier, held shut down
     output wire       sw_vcc,        // pin 16  3V3_SW: U3 and J6 run from it, held high
-    output wire [4:0] led_n          // pins 15 17 18 19 20, active low
+    output wire [4:0] led_n,         // pins 15 17 18 19 20, active low
+    output wire       uart_tx,       // pin 69  the log, to the USB-UART bridge
+    input  wire       uart_rx        // pin 70  the laptop's commands, from it
 );
+`include "build_id.vh"               // BUILD_ID, written by build.py
     // ------------------------------------------------------------- clocks
     wire fclk, pll_lock, clk_s;
     rPLL #(
@@ -54,14 +59,20 @@ module top_tangnano20k (
     // ------------------------------------------------------------- reset
     // held until the PLL locks, then 2^16 clk_s (0.66 ms) more; registered, and copied by synthesis
     // wherever it would drive more than 64 loads (as in MOST25-to-AUDIO, where one net straight from
-    // the counter across the chip was the slowest path)
+    // the counter across the chip was the slowest path). rst_s resets the core, and also while the
+    // log holds it (the supply's loss emulated while the laptop is attached); rst_p is power-up
+    // only, for the log and the line's run counter.
     reg [16:0] por = 17'd0;
     always @(posedge clk_s or negedge pll_lock)
         if (!pll_lock) por <= 17'd0;
         else if (!por[16]) por <= por + 17'd1;
+    wire hold;
     reg rst_s /* synthesis syn_maxfan = 64 */;
+    reg rst_p /* synthesis syn_maxfan = 64 */;
     initial rst_s = 1'b1;
-    always @(posedge clk_s) rst_s <= ~por[16];
+    initial rst_p = 1'b1;
+    always @(posedge clk_s) rst_s <= ~por[16] | hold;
+    always @(posedge clk_s) rst_p <= ~por[16];
 
     // ---------------------------------------------------------- sampler
     wire [7:0] q;
@@ -74,8 +85,9 @@ module top_tangnano20k (
 
     // -------------------------------------------------------------- core
     wire [7:0] spdif_word, status;
-    reader_core u_core (.clk(clk_s), .rst(rst_s), .samp(samp),
-                        .spdif_word(spdif_word), .spdif(), .status(status));
+    reader_core #(.BUILD_ID(BUILD_ID))
+        u_core (.clk(clk_s), .rst(rst_p), .rst_c(rst_s), .samp(samp), .spdif_word(spdif_word), .spdif(),
+                .status(status), .uart_tx(uart_tx), .uart_rx(uart_rx), .hold(hold));
 
     // ---------------------------------------------------------- S/PDIF out
     // one register between the core and the serializer, so the OSER8's inputs come straight off

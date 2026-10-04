@@ -88,7 +88,10 @@ module ctrl_decode #(
     output reg         hit,                 // pulse: ...one of ours
     output reg         dropped,             // pulse: a block completed, but a frame's parity was off
     output wire        par_known_o,         // the ring's parity sense is known and checked
-    output wire        busy                 // commands pending or going out
+    output wire        par_sense_o,         // ...and what it is (the log)
+    output wire        busy,                // commands pending or going out
+    output wire [13:0] dstate               // the log: per stream s at 4s: on, confirmed, muted, own level;
+                                            // 12 0x409 audio level heard, 13 0x409 nav level heard
 );
 `include "gain_rom.vh"
     integer k;
@@ -107,6 +110,7 @@ module ctrl_decode #(
     reg [3:0]  bad_run;                     // frames of the other parity in a row, once known
     wire       bad_now = par_known && frame_par != par_sense;
     assign par_known_o = par_known;
+    assign par_sense_o = par_sense;
     always @(posedge clk) begin
         if (rst) begin
             par_known <= 1'b0; par_sense <= 1'b0; par_last <= 1'b0; par_cnt <= 8'd0; bad_run <= 4'd0;
@@ -379,6 +383,7 @@ module ctrl_decode #(
     // the next stream whose position goes out
     wire [1:0]  ps = pos_pend[0] ? 2'd0 : pos_pend[1] ? 2'd1 : 2'd2;
     wire [1:0]  pw = !pos_on[ps] ? 2'd0 : pos_w3[ps] ? 2'd3 : 2'd2;      // P[1:0]: off, 16 bit, 24 bit
+    wire        any_pend = pos_pend[0] || pos_pend[1] || pos_pend[2];
 
     // ---------------------------------------------------------- the sequencer, one command a clock
     localparam [2:0] S_IDLE = 3'd0, S_BQ = 3'd1, S_GL = 3'd2, S_GEL = 3'd3, S_GER = 3'd4, S_K = 3'd5;
@@ -389,6 +394,28 @@ module ctrl_decode #(
     reg [2:0]  bq5;                         // word within a biquad
     reg [31:0] g_q;
     assign busy = st != S_IDLE || pos_pend[0] || pos_pend[1] || pos_pend[2] || coef_pend;
+    assign dstate = {have_n, have_a,
+                     have_db[2], muted[2], confirmed[2], pos_on[2],
+                     have_db[1], muted[1], confirmed[1], pos_on[1],
+                     have_db[0], muted[0], confirmed[0], pos_on[0]};
+
+    // Command 01 is put together a clock ahead, in p01_q, from the tables as they are: picked in
+    // the clock it left, the stream's six bytes behind the pending bits were clk_s's slowest path
+    // (pos_pend -> ps -> pos_b -> p, 6 levels). p01_v says p01_q is the tables' current word: not
+    // in the clock after e5 changed them (the request e5 sets then goes out a clock later), not in
+    // the clock after the command went out (its pending bit is cleared only then).
+    reg  [55:0] p01_q;
+    reg  [1:0]  ps_q;
+    reg         p01_v;
+    wire        fire01 = st == S_IDLE && p01_v;
+    always @(posedge clk) begin
+        p01_q <= {2'b00, ps, 1'b0, pos_on[ps] & pos_mono[ps], pw,
+                  pos_on[ps] ? pos_b[6 * ps + 0] : 8'd0, pos_on[ps] ? pos_b[6 * ps + 1] : 8'd0,
+                  pos_on[ps] ? pos_b[6 * ps + 2] : 8'd0, pos_on[ps] ? pos_b[6 * ps + 3] : 8'd0,
+                  pos_on[ps] ? pos_b[6 * ps + 4] : 8'd0, pos_on[ps] ? pos_b[6 * ps + 5] : 8'd0};
+        ps_q  <= ps;
+        p01_v <= any_pend && !e5 && !fire01 && !rst;
+    end
 
     always @(posedge clk) begin
         ok <= 1'b0; tel <= 1'b0; hit <= 1'b0;
@@ -406,15 +433,14 @@ module ctrl_decode #(
         end else begin
             case (st)
                 S_IDLE:
-                    if (pos_pend[0] || pos_pend[1] || pos_pend[2]) begin
+                    if (p01_v) begin
                         // command 01: P = {00, stream, 0, mono, width}, then L0 L1 L2 R0 R1 R2
                         ok  <= 1'b1;
                         cmd <= 8'h01;
-                        p   <= {2'b00, ps, 1'b0, pos_on[ps] & pos_mono[ps], pw,
-                                pos_on[ps] ? pos_b[6 * ps + 0] : 8'd0, pos_on[ps] ? pos_b[6 * ps + 1] : 8'd0,
-                                pos_on[ps] ? pos_b[6 * ps + 2] : 8'd0, pos_on[ps] ? pos_b[6 * ps + 3] : 8'd0,
-                                pos_on[ps] ? pos_b[6 * ps + 4] : 8'd0, pos_on[ps] ? pos_b[6 * ps + 5] : 8'd0};
-                        pos_pend[ps] <= 1'b0;
+                        p   <= p01_q;
+                        pos_pend[ps_q] <= 1'b0;
+                    end else if (any_pend) begin
+                        // a position is due and its word is being put together: it goes first
                     end else if (coef_pend) begin
                         coef_pend <= 1'b0;
                         tag <= tag + 8'd1;

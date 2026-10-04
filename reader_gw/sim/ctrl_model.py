@@ -86,10 +86,15 @@ class CtrlDecoder:
     # ---------------------------------------------------------- frames
     def frame(self, frame: bytes, blk_known: bool = True, locked: bool = True) -> List[Cmd]:
         """One completed frame, as rx_framer delivers it: byte 0's high nibble is the block index."""
-        idx = frame[0] >> 4
-        self.blk[2 * idx] = frame[S.BYTE_CTRL0]
-        self.blk[2 * idx + 1] = frame[S.BYTE_CTRL1]
-        par = frame_parity(frame)
+        return self.frame_parts(frame[0] >> 4, frame[S.BYTE_CTRL0], frame[S.BYTE_CTRL1], frame_parity(frame),
+                                blk_known, locked)
+
+    def frame_parts(self, idx: int, b61: int, b62: int, par: int, blk_known: bool = True,
+                    locked: bool = True) -> List[Cmd]:
+        """The same, from what the ring log keeps of a frame: its index, its two control bytes and
+        its parity (tools/log_decode.py replays a trip's BLOCK records through this)."""
+        self.blk[2 * idx] = b61
+        self.blk[2 * idx + 1] = b62
         bad_now = self.par_known and par != self.par_sense
         complete = locked and blk_known and idx == 15 and not self.blk_bad and not bad_now
         if locked and blk_known and idx == 15 and (self.blk_bad or bad_now):

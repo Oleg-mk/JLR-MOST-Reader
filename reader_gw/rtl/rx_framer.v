@@ -65,8 +65,11 @@ module rx_framer #(
     output reg        fe_valid,       // a frame edge: UI 0 (fe_rise) or UI 512
     output reg        fe_rise,
     output reg [31:0] fe_t,           // its sample time
-    output wire [31:0] fe_next        // a UI 0's time a clock early: in the clock before fe_valid
+    output wire [31:0] fe_next,       // a UI 0's time a clock early: in the clock before fe_valid
                                       // brings it (ev_start high), the value fe_t takes then
+    output wire        pre_done_o,    // the log: a preamble completed, its run pattern
+    output wire [11:0] pre_sig_o,     //          in pre_sig_o, and the pattern most preambles have
+    output wire [11:0] com_sig_o
 );
     reg        in_frame;
     reg [10:0] pos;                   // UI position inside the frame
@@ -81,6 +84,9 @@ module rx_framer #(
     reg [2:0]  good;
     reg        pre_done;              // a preamble completed in the last clock: block bookkeeping now
     reg [11:0] sig_q;                 // ... with this run pattern
+    assign pre_done_o = pre_done;
+    assign pre_sig_o  = sig_q;
+    assign com_sig_o  = common_sig;
     reg        ev_start, ev_mid;      // a frame started / UI 512 passed in this clock (times leave a clock later)
     reg [31:0] prev_q, symt_q;
     assign fe_next = prev_q;

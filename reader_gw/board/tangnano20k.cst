@@ -25,6 +25,12 @@ IO_PORT "pa_en" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
 IO_LOC "sw_vcc" 16;                // LED1
 IO_PORT "sw_vcc" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=24 BANK_VCCIO=3.3;
 
+// the ring log over the module's own USB-UART (BL616 bridge); neither pin is on a header
+IO_LOC "uart_tx" 69;               // PIN69_SYS_TX -> BL616 UART RX
+IO_PORT "uart_tx" IO_TYPE=LVCMOS33 PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "uart_rx" 70;               // PIN70_SYS_RX <- BL616 UART TX; idle (or the bridge off) reads high
+IO_PORT "uart_rx" IO_TYPE=LVCMOS33 PULL_MODE=UP BANK_VCCIO=3.3;
+
 // onboard LEDs, active low (their header pins are not wired on the board)
 IO_LOC "led_n[0]" 15;
 IO_LOC "led_n[1]" 17;

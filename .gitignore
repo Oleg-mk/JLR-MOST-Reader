@@ -9,3 +9,7 @@ reader_hw/erc.rpt
 
 # gateware: the Gowin build's output (bitstream, reports); python build.py in reader_gw/board makes it
 reader_gw/board/impl/
+# the commit a build came from, written by build.py
+reader_gw/board/build_id.vh
+# trip logs (tools/ring_log.py): large, kept outside git
+logs/

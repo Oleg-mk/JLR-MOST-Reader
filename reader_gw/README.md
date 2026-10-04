@@ -23,6 +23,8 @@ come over from `MOST25-to-AUDIO/listener_gw`.
 | `board/top_tangnano20k.v`, `tangnano20k.cst`, `.sdc`, `build.tcl`, `build.py`, `check_timing.py` | the board top: rPLL, CLKDIV, IDES8 on the ring's line, OSER8 on the S/PDIF line, LEDs; the pins; the Gowin build and its timing check | new (from the listener's) |
 | `sim/run_oser.py` | the OSER8's and the IDES8's word order on Gowin's own models | new |
 | `sim/ring_stim.py`, `tb_core.v`, `run_e2e.py` | a JLR ring on the line through the whole reader, every link checked | new |
+| `rtl/diag_log.v`, `diag_cap.v`, `diag_fifo.v`, `diag_uart_tx.v`, `diag_cmd.v`; `LOGGING.md` | the ring log over the module's USB-UART: what the reader sees and decides, as records; the line captured around triggers; the laptop's commands | new (the capture after the listener's) |
+| `sim/run_log.py`, `log_model.py` | the log from the line to the laptop's parser, every record against a model built from inside the core | new |
 
 ## ctrl_decode
 
@@ -125,6 +127,8 @@ three FPGA pins and nothing else:
 | 27 (LCD_B7, IOB8[A]) | 8 | RX_IN, from U3 | the ring's line, IDES8 at 792 Msps |
 | 42 (LCD_R3, IOB42[B]) | 25 | SPDIF_F, to R28 and J6 | the S/PDIF line, OSER8 on the same grid |
 | 16 (LED1, bank 6) | 7 | 3V3_SW, to U3 and J6 | held high, the strongest drive: U3's and J6's supply |
+| 69 (PIN69_SYS_TX, bank 1) | none | the module's USB-UART bridge (BL616), its RX | the ring log, 3 Mbaud 8N1 |
+| 70 (PIN70_SYS_RX, bank 1) | none | the bridge's TX, pulled up | the laptop's commands to the log |
 
 The two signals are shared on the module only with its empty LCD connector. Pin 28, the other
 half of pin 27's IOB pair, is left unwired; pin 42's other half has no pin on the QN88 package.
@@ -147,8 +151,14 @@ LEDs, active low: 0 receiver locked, 2 frame train running, 3 frame parity known
 messages decoded (85 ms flash), 5 a block dropped (flash) or an engine overrun (stays on).
 LED 1 is dark: its pin is 3V3_SW.
 
-Build: `cd board && python build.py` runs `gw_sh build.tcl` and then `check_timing.py`, which
-fails when a clock misses its constraint or keeps less than 10 % margin.
+Two resets: rst_p, power-up only, for the log and rx_runlen; rst_s for the core, power-up or the
+log's hold (the supply's loss emulated while the laptop is attached, LOGGING.md), in the same
+registered net as before.
+
+Build: `cd board && python build.py` writes `build_id.vh` (the commit, bit 31 set for uncommitted
+changes; the log sends it in every STATUS), runs `gw_sh build.tcl` and then `check_timing.py`,
+which fails when a clock misses its constraint or keeps less than 10 % margin. Place and route
+run in Gowin's timing modes (`place_option 1`, `route_option 1`).
 
 ### Timing on the chip
 
@@ -173,7 +183,17 @@ flip-flop before the subtract; the history range register is copied by synthesis
 equal in what it does. Now 109.5 MHz, 10.6 % margin: the rule holds, by a little; the margin
 moves with placement. Setup and hold met everywhere; the one warning left is PR1014 (the
 crystal reaches the PLL on general routing), as on the listener.
-The chip is mostly free: logic 26 %, registers 30 %, 7 of 46 BSRAM, 3 of 24 DSP.
+The chip was mostly free then: logic 26 %, registers 30 %, 7 of 46 BSRAM, 3 of 24 DSP.
+
+With the ring log (2026-10-04) it is 53 % logic, 55 % registers, 82 % of the slices, 28 of 46
+BSRAM (16 of them the capture), 4 of 24 DSP. Getting there took four builds: the log's first form
+(each record in a shift register of its own, a 32-block capture) filled 89 % of the slices and
+left 99.1 MHz; the records served from where their data already sits, a two-clock byte pick, an
+event queue in LUT RAM, a 16-block capture and the taps kept apart from amp_out's copies brought
+it to 99.9 MHz with the paths all routing, no logic; Gowin's timing modes for placement and
+routing then gave 110.8 MHz, 12.0 % margin. Before any of that, ctrl_decode's command-01 pick
+(pos_pend -> ps -> pos_b -> p, the worst path) got a clock of its own (p01_q, a clock ahead of
+the command; checked by run_ctrl.py and run_e2e.py): 121.6 MHz, 22.9 %, without the log.
 The checks that it still does the same: `run_ctrl.py`, `run_nco.py` (with three corners added
 that put the train's tick at UI 0 next to the edge's clock), `run_amp.py`, `run_e2e.py`; the
 tick logs of every `run_nco.py` corner equal, line for line, those of the reviewed intermediate
@@ -248,6 +268,25 @@ python tools/crosscheck_most_msg.py      the block parser against most_msg.c
 python tools/crosscheck_gains.py         the gain words against sound.c + dsp_img.c
 ```
 
+### The ring log, from the line to the laptop's parser
+
+`sim/run_log.py` runs the whole reader with the log, its times shrunk (a "millisecond" of 20 us, a
+capture of 256 entries), the laptop's commands on uart_rx, and checks the log's UART line bit by
+bit, then every record against `sim/log_model.py`, built from what the testbench saw inside the
+core: every BLOCK byte for byte (partial blocks too), every position command and coefficient set,
+the STATUS counters and state at the clock each was taken, every lock, index, train, parity,
+commit and bank event with its argument and time, every dump as a contiguous stretch of the
+line's runs or frame bytes with the trigger at its place; then `tools/log_decode.py` on the same
+bytes, whose replay of the raw blocks through `ctrl_model.py` must give exactly the decisions the
+FPGA logged. Corners: a ring with the head unit's telegrams, a mark, a frames capture, the laptop
+attached and a soak-test burst; the ring dark for 1.5 ms with the laptop attached (the core held,
+everything learnt anew after the wake); two frames lost after the lock held (the unlock capture);
+the module powered with the ring asleep (the core held from DARK, the first edge starts COLD,
+nothing decoded before it ends). `tools/test_log_format.py` runs the parser over damaged streams.
+The design was reviewed before it was built and the code after it (2026-10-03/04, adversarial
+reviews of the trip's needs, the RTL and timing, the link and the PC side, product safety); the
+findings are fixed and in LOGGING.md.
+
 ## Not proved - what only a recording of the car settles
 
 - Which volume message the XF's amplifier gets: 0x46D in dB (usb2most saw it on Freelander 2
@@ -265,3 +304,6 @@ python tools/crosscheck_gains.py         the gain words against sound.c + dsp_im
   streams play their start-up levels.
 - What a real S/PDIF receiver makes of edges on a 1.26 ns grid is for the bench; the line's
   structure and timing are checked here, a receiver's PLL is not modelled.
+- The ring log settles the points above on the first trip (LOGGING.md, "Before the car"). The
+  BL616 bridge's sustained 3 Mbaud into Windows is proved only on the bench soak test, still to
+  run on the real module.

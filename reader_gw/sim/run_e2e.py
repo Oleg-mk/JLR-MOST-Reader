@@ -54,7 +54,8 @@ from ctrl_model import CtrlDecoder, fmt                                    # noq
 
 SRC = [str(HERE / "tb_core.v")] + [str(RTL / f) for f in
        ("reader_core.v", "rx_runlen.v", "rx_classify.v", "rx_framer.v", "nco_frame.v", "ctrl_decode.v",
-        "amp_out.v", "dsp_core.v", "spdif_tx.v")]
+        "amp_out.v", "dsp_core.v", "spdif_tx.v", "diag_log.v", "diag_cap.v", "diag_fifo.v", "diag_uart_tx.v",
+        "diag_cmd.v")]
 FS = 48000
 FSAMP = 792e6
 

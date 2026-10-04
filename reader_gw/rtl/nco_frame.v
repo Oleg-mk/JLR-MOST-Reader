@@ -77,7 +77,8 @@ module nco_frame #(
     output reg  [31:0] per,                     // Q8.24 samples a tick
     output reg         per_ok,                  // per is measured, not the nominal
     output reg         rate48,                  // under 17 samples a tick: 48 kHz (else 44.1)
-    output reg  [31:0] err_last                 // the last phase error seen, samples (signed), for the bench
+    output reg  [31:0] err_last,                // the last phase error seen, samples (signed), for the bench
+    output wire        pin_o                    // pulse: a landing pins the train anew (the log)
 );
     localparam [9:0] PH_UI0 = (1024 - D_TICKS) % 1024;   // the phase at a frame's UI 0
     localparam [9:0] PH_PRE = PH_UI0 - 10'd1;            // the phase whose next tick is PH_UI0's
@@ -103,6 +104,7 @@ module nco_frame #(
     reg  [31:0] e_raw_q;                        // its error against the last tick at PH_UI0 (E)
     reg  [31:0] e_wrap_q;                       // ...wrapped into a frame (E+1)
     reg         pin_q, near_q;                  // it pins anew / tracks, with the period measured (E+2)
+    assign pin_o = v3 && pin_q;
     reg  [55:0] add_op;                         // what add_t adds in the next clock: one period, plus the
                                                 // correction in the landing clock
     reg  [55:0] addn_op;                        // what add_n adds in the next clock: the correction, or 0

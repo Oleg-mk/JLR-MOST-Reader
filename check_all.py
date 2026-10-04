@@ -37,6 +37,8 @@ STEPS = [
     ("board: DRC and parity with the sheet (kicad-cli)", [PY, "tools/check_board.py"]),
     ("gateware: OSER8 and IDES8 word order on Gowin's models (iverilog)", [PY, "reader_gw/sim/run_oser.py"]),
     ("pins: the module's wiring on the sheet against the gateware's .cst", [PY, "tools/check_pins.py"]),
+    ("log: the parser on damaged streams", [PY, "tools/test_log_format.py"]),
+    ("gateware: the ring log from the line to the laptop's parser (iverilog)", [PY, "reader_gw/sim/run_log.py"]),
     ("fab: the manufacturing package (make_fab.py)", [PY, "reader_hw/make_fab.py"]),
     ("fab: the package matches the commit",
      [PY, "-c", "import subprocess, sys; o = subprocess.run(['git', 'status', '--porcelain', '--', 'reader_hw/fab'], "

@@ -58,9 +58,13 @@ module rx_classify #(
     output reg  [3:0] sym_len,      // the run in whole UI, 0..15 (= sym for classes 1..3)
     output reg        sym_level,
     output reg [15:0] ui_q,         // current UI estimate, Q8.8 (for status)
-    output reg [31:0] sym_t         // sample time of the edge that ended this run
+    output reg [31:0] sym_t,        // sample time of the edge that ended this run
+    output wire       relearn_o,    // pulse: RELEARN clocks unlocked, ui and b start again (the log)
+    output reg  [7:0] sym_raw,      // with sym_valid: the run's length in samples as it came (the log)
+    output wire [15:0] b_o          // the pulse-width bias b, Q8.8 signed (the log)
 );
     reg signed [15:0] b;            // pulse-width bias, Q8.8
+    assign b_o = b;
 
     // thresholds, re-registered every clock from ui_q: (k + 0.5) UI for k = 0..14
     reg signed [17:0] t05, t15, t25, u1, u2;
@@ -84,12 +88,14 @@ module rx_classify #(
     reg               v1, l1, g1;
     reg signed [17:0] r1;
     reg        [31:0] t1;
+    reg        [7:0]  n1, n1b;              // the raw length, carried along for the log
     wire signed [17:0] raw = {2'b0, run_len, 8'd0};
     always @(posedge clk) begin
         v1 <= run_valid & ~rst;
         l1 <= run_level;
         g1 <= gpend;
         t1 <= run_t;
+        n1 <= run_len;
         r1 <= run_level ? raw - b : raw + b;
     end
 
@@ -104,7 +110,7 @@ module rx_classify #(
         ge[0] <= r1 >= t05; ge[1] <= r1 >= t15; ge[2] <= r1 >= t25;
         for (k = 3; k <= 14; k = k + 1) ge[k] <= r1 >= th[k];
         ge[15] <= 1'b0;
-        v1b <= v1 & ~rst; l1b <= l1; g1b <= g1; r1b <= r1; t1b <= t1;
+        v1b <= v1 & ~rst; l1b <= l1; g1b <= g1; r1b <= r1; t1b <= t1; n1b <= n1;
     end
 
     // ---- stage 3: length in whole UI (0..15), then the class
@@ -121,7 +127,7 @@ module rx_classify #(
     reg signed [17:0] r2, uk2;              // r, and the UI of its class (one or two)
     always @(posedge clk) begin
         v2 <= v1b & ~rst; l2 <= l1b; c2 <= c; r2 <= r1b; uk2 <= (n == 4'd2) ? u2 : u1;
-        sym_valid <= v1b & ~rst; sym <= c; sym_len <= n; sym_level <= l1b; sym_t <= t1b;
+        sym_valid <= v1b & ~rst; sym <= c; sym_len <= n; sym_level <= l1b; sym_t <= t1b; sym_raw <= n1b;
     end
 
     // ---- stage 4: the error of r against its class (the subtract alone: with
@@ -160,6 +166,7 @@ module rx_classify #(
 
     reg  [19:0] unl;                // clocks without a locked frame
     wire        relearn = (unl == RELEARN - 1);
+    assign relearn_o = relearn;
     always @(posedge clk) unl <= (rst || locked || relearn) ? 20'd0 : unl + 20'd1;
 
     always @(posedge clk) begin
