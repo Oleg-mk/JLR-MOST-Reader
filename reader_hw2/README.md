@@ -16,6 +16,8 @@ python tools/check_v2_circuit.py               v2.0's circuit equals v1.0's once
 python tools/check_board.py reader_hw2/most_reader_v2.kicad_pcb
                                                DRC with the parity check, the silkscreen minimums
 python reader_hw2/make_fab.py                  the manufacturing package in fab/: JLCPCB, SMD on the bottom
+"%LOCALAPPDATA%\Programs\KiCad\10.0\bin\python.exe" reader_hw2\gen_caps.py
+                                               the tube's end caps in caps/: STEP, STL, the drawing
 python tools/make_kit.py --v2 DIR              the kit in DIR: 1_boards, 2_fpga, 3_laptop (READMEs in kit/)
 ```
 
@@ -190,6 +192,26 @@ below, 180 minus KiCad's, plus the part's own turn from v1.0's table; checked ag
 all 52 parts. `tools/make_kit.py --v2 DIR` writes the kit: 1_boards from `fab/` with the README in
 `kit/1_boards`, the README in `kit/`, and v1.0's 2_fpga and 3_laptop.
 
+## The end caps: gen_caps.py
+
+The caps come from `check_fit.py`'s model (it must pass) and the board's leads, into `caps/`: a STEP
+and an STL of each (the print's frame: the outer face on the bed), `caps.svg` (each cap seen from
+outside and in section, the openings' table, the notes) and a README.
+
+- A flange of the tube's outline, 30 mm square and 2.0 mm thick, sits on the tube's end face; the
+  board's ends butt against the flanges, so the tube is 95.0 mm (+0.2/-0), as long as the board.
+- Every opening is its part plus 0.25 mm a side; no wall is thinner than 1.2 mm (three lines of a
+  0.4 mm nozzle). J6's body and J4's face share one opening: the web between two would be 0.4 mm.
+- The ring cap's block carries the board's underside at 11.47 mm and ends 1.0 mm before the first
+  part underneath (C8); it stays 2.0 mm off J1's soldered action pins, and a slot along it, open to
+  the inside, lets J1's peg through while the cap slides on under the board.
+- The far cap's block sits over the module's end, 0.5 mm above the USB-C.
+- Each cap takes a self-tapping M2 screw through the tube's wall into its block, the hole in the
+  block drilled at assembly: through the floor at the ring end, through the top at the far end.
+- The script fails, writing nothing, when a wall comes out thinner, an opening closer to its part,
+  a block onto a part or a lead, or the mesh is open. A scratch board with the two STEP models on it
+  rendered by KiCad (2026-10-06) shows J1, the USB-C and J6 in their openings.
+
 ## Not yet
 
-The caps' drawings (`check_fit.py` prints their cut-outs).
+The caps printed and tried on a real tube.

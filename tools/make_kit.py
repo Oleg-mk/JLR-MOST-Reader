@@ -18,7 +18,7 @@ kit/3_laptop   the laptop's programs: tools/ring_log.py, log_format.py, log_deco
 The READMEs and the launchers in kit/ are written by hand; this script only checks they are there.
 
 v2.0's kit (reader_hw2, the board in a tube) has the same three folders: 1_boards from reader_hw2/fab
-and the READMEs written by hand in reader_hw2/kit; 2_fpga and 3_laptop are kit/'s, whole and as
+with the tube's end caps from reader_hw2/caps, and the READMEs written by hand in reader_hw2/kit; 2_fpga and 3_laptop are kit/'s, whole and as
 committed - the same circuit (tools/check_v2_circuit.py), so the same bitstream and programs. --v2
 refuses while kit/ differs from its sources.
 """
@@ -71,6 +71,11 @@ V2_COPIES = {
     "1_boards/most_reader_v2-assembly-bottom.pdf": "reader_hw2/fab/most_reader_v2-assembly-bottom.pdf",
     "1_boards/most_reader_v2-assembly-top.pdf": "reader_hw2/fab/most_reader_v2-assembly-top.pdf",
     "1_boards/most_reader_v2-schematic.pdf": "reader_hw2/fab/most_reader_v2-schematic.pdf",
+    "1_boards/caps/ring_cap.stl": "reader_hw2/caps/ring_cap.stl",
+    "1_boards/caps/ring_cap.step": "reader_hw2/caps/ring_cap.step",
+    "1_boards/caps/far_cap.stl": "reader_hw2/caps/far_cap.stl",
+    "1_boards/caps/far_cap.step": "reader_hw2/caps/far_cap.step",
+    "1_boards/caps/caps.svg": "reader_hw2/caps/caps.svg",
     "1_boards/README.md": "reader_hw2/kit/1_boards/README.md",
     "README.md": "reader_hw2/kit/README.md",
 }

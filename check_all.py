@@ -58,6 +58,11 @@ STEPS = [
      [PY, "-c", "import subprocess, sys; o = subprocess.run(['git', 'status', '--porcelain', '--', 'reader_hw2/fab'], "
                 "capture_output=True, text=True).stdout; print(o or 'reader_hw2/fab is the committed package'); "
                 "sys.exit(1 if o.strip() else 0)"]),
+    ("v2.0 caps: the tube's end caps from check_fit's model (gen_caps.py)", ["KIPY", "reader_hw2/gen_caps.py"]),
+    ("v2.0 caps: the caps match the commit",
+     [PY, "-c", "import subprocess, sys; o = subprocess.run(['git', 'status', '--porcelain', '--', 'reader_hw2/caps'], "
+                "capture_output=True, text=True).stdout; print(o or 'reader_hw2/caps is the committed set'); "
+                "sys.exit(1 if o.strip() else 0)"]),
 ]
 
 
