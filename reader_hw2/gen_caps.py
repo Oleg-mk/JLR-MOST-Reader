@@ -566,9 +566,11 @@ def drawing(caps, m):
                          + f" труби, {blk['screw'][2]:.1f} мм від торця, по осі"
                          for c in caps for blk in c["blocks"]) + ".",
         "Кільцеву кришку надягати після плати: паз у блоці пропускає фіксатор J1, блок стає під плату.",
+        "Земля труби: під голову саморіза дальньої кришки — кільцевий наконечник M2 і зубчаста шайба; провід 3–5 см",
+        "  до мінуса джгута J4 біля колодки (пайка, термоусадка). Труба без покриття або зачищена під шайбою.",
     ]
     for i, s in enumerate(notes):
-        text(12, H - 40 + 5 * i, s, 3.0)
+        text(12, H - 48 + 5 * i, s, 3.0)
     o.append("</svg>")
     return "\n".join(o) + "\n"
 
@@ -632,6 +634,10 @@ bottom edge:
 {screws}
 - The ring cap goes on after the board is in: its block slides under the board, J1's peg through
   the slot.
+- The tube's bond to ground, by J4: an M2 ring terminal and a serrated washer under the far cap's
+  screw head, a 3-5 cm wire to the GND wire of J4's harness by its plug (soldered, heat-shrunk). The
+  board has no room for a bond of its own there: the module's header rows run 2.2 mm from both long
+  edges, J4 and J6 fill the end. A raw tube, or its anodizing scraped off under the washer.
 """
 
 

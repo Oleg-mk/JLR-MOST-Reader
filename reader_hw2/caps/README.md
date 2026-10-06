@@ -46,3 +46,7 @@ bottom edge:
   - far_cap: through the tube's top, 3.0 mm from its end, on the axis
 - The ring cap goes on after the board is in: its block slides under the board, J1's peg through
   the slot.
+- The tube's bond to ground, by J4: an M2 ring terminal and a serrated washer under the far cap's
+  screw head, a 3-5 cm wire to the GND wire of J4's harness by its plug (soldered, heat-shrunk). The
+  board has no room for a bond of its own there: the module's header rows run 2.2 mm from both long
+  edges, J4 and J6 fill the end. A raw tube, or its anodizing scraped off under the washer.

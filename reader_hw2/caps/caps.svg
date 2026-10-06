@@ -66,10 +66,12 @@
 <path d="M339.00,54.50 L381.00,54.50" stroke-width="0.15" stroke-dasharray="1.5,1"/>
 <path d="M339.00,50.00 L381.00,50.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
 <text x="382.50" y="137.75" font-size="2.4" text-anchor="start" font-weight="normal" fill="black" stroke="none">стінка труби</text>
-<text x="12.00" y="257.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Друк: FDM із PETG або ASA (PLA у машині м'якне), або замовлення MJF PA12; зовнішньою гранню на стіл, без підтримок.</text>
-<text x="12.00" y="262.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Стінки не тонші 1.2 мм. Фланець 2.0 мм лягає на торець труби, плата впирається в нього торцем.</text>
-<text x="12.00" y="267.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Труба 30×30×1.5, довжина 95.0 +0.2/−0 мм, торці рівні й без задирок: плата між фланцями.</text>
-<text x="12.00" y="272.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Фіксація: по одному саморізу M2×6 на кришку. Отвір Ø2.2 у стінці труби, у блок свердлити Ø1.6 при складанні:</text>
-<text x="12.00" y="277.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  кільцева — у дні труби, 4.5 мм від торця, по осі; дальня — у стелі труби, 3.0 мм від торця, по осі.</text>
-<text x="12.00" y="282.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Кільцеву кришку надягати після плати: паз у блоці пропускає фіксатор J1, блок стає під плату.</text>
+<text x="12.00" y="249.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Друк: FDM із PETG або ASA (PLA у машині м'якне), або замовлення MJF PA12; зовнішньою гранню на стіл, без підтримок.</text>
+<text x="12.00" y="254.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Стінки не тонші 1.2 мм. Фланець 2.0 мм лягає на торець труби, плата впирається в нього торцем.</text>
+<text x="12.00" y="259.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Труба 30×30×1.5, довжина 95.0 +0.2/−0 мм, торці рівні й без задирок: плата між фланцями.</text>
+<text x="12.00" y="264.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Фіксація: по одному саморізу M2×6 на кришку. Отвір Ø2.2 у стінці труби, у блок свердлити Ø1.6 при складанні:</text>
+<text x="12.00" y="269.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  кільцева — у дні труби, 4.5 мм від торця, по осі; дальня — у стелі труби, 3.0 мм від торця, по осі.</text>
+<text x="12.00" y="274.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Кільцеву кришку надягати після плати: паз у блоці пропускає фіксатор J1, блок стає під плату.</text>
+<text x="12.00" y="279.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Земля труби: під голову саморіза дальньої кришки — кільцевий наконечник M2 і зубчаста шайба; провід 3–5 см</text>
+<text x="12.00" y="284.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  до мінуса джгута J4 біля колодки (пайка, термоусадка). Труба без покриття або зачищена під шайбою.</text>
 </svg>

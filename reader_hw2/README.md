@@ -208,6 +208,11 @@ outside and in section, the openings' table, the notes) and a README.
 - The far cap's block sits over the module's end, 0.5 mm above the USB-C.
 - Each cap takes a self-tapping M2 screw through the tube's wall into its block, the hole in the
   block drilled at assembly: through the floor at the ring end, through the top at the far end.
+- The tube is bonded to ground by J4 through the far cap's screw: an M2 ring terminal and a
+  serrated washer under its head, a 3-5 cm wire to the GND wire of J4's harness by the plug
+  (2026-10-06, the user's choice). The board has no room for a bond there: the module's header
+  rows run 2.2 mm from both long edges, J4 and J6 fill the end; the tube raw, or its anodizing
+  scraped off under the washer.
 - The script fails, writing nothing, when a wall comes out thinner, an opening closer to its part,
   a block onto a part or a lead, or the mesh is open. A scratch board with the two STEP models on it
   rendered by KiCad (2026-10-06) shows J1, the USB-C and J6 in their openings.
