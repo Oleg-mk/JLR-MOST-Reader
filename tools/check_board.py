@@ -3,7 +3,9 @@
 
 The board (laid out once by reader_hw/gen_reader_pcb.py, then placed and routed by hand) is
 the master: this runs KiCad's DRC on it with the schematic parity check and reads the JSON
-report. It fails on any violation and on any difference from the sheet. Unconnected items are
+report. It fails on any violation and on any difference from the sheet, a footprint whose value
+or footprint differs from its symbol included (KiCad reports that one only as a warning; a stale
+value would reach the BOM). Unconnected items are
 reported; they fail the check only once the board carries copper tracks, i.e. once routing has
 begun - a board still at its initial placement passes with everything unconnected. It also
 reads the silkscreen off the board file: every visible text at least 1.0 mm high with a 0.15 mm
@@ -91,14 +93,18 @@ def main() -> int:
     (HW / "work").mkdir(exist_ok=True)
     report = HW / "work" / "drc.json"
     report.unlink(missing_ok=True)
-    r = subprocess.run([KICAD, "pcb", "drc", "--severity-error", "--schematic-parity", "--format", "json",
+    r = subprocess.run([KICAD, "pcb", "drc", "--severity-all", "--schematic-parity", "--format", "json",
                         "--output", str(report), str(board)], capture_output=True, text=True)
     if r.returncode or not report.exists():
         print(r.stdout, r.stderr)
         print("FAIL: DRC did not run")
         return 2
     d = json.loads(report.read_text(encoding="utf-8"))
-    viol, parity, unc = d["violations"], d.get("schematic_parity", []), d["unconnected_items"]
+    # errors, as KiCad grades them; of its warnings only a footprint that differs from its symbol
+    err = lambda x: x.get("severity") == "error"
+    viol = [x for x in d["violations"] if err(x)]
+    parity = [x for x in d.get("schematic_parity", []) if err(x) or x["type"] == "footprint_symbol_mismatch"]
+    unc = [x for x in d["unconnected_items"] if err(x)]
     text = board.read_text(encoding="utf-8")
     routed = "(segment" in text
     thin = silk(text)
