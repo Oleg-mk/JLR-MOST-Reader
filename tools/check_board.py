@@ -12,7 +12,7 @@ reads the silkscreen off the board file: every visible text at least 1.0 mm high
 stroke and every line at least 0.15 mm wide, JLCPCB's minimums (KiCad's DRC checks the text
 only as a warning and the lines not at all).
 
-    python tools/check_board.py
+    python tools/check_board.py [board.kicad_pcb]     (default reader_hw/most_reader.kicad_pcb, v1.0)
     KICAD_CLI   kicad-cli, default %LOCALAPPDATA%/Programs/KiCad/10.0/bin/kicad-cli.exe
 """
 from __future__ import annotations
@@ -86,12 +86,12 @@ def silk(text):
 
 
 def main() -> int:
-    board = HW / "most_reader.kicad_pcb"
+    board = (ROOT / sys.argv[1]).resolve() if len(sys.argv) > 1 else HW / "most_reader.kicad_pcb"
     if not board.exists():
-        print(f"FAIL: {board} does not exist (run gen_reader_pcb.py with KiCad's python)")
+        print(f"FAIL: {board} does not exist (run its gen_*_pcb.py with KiCad's python)")
         return 2
-    (HW / "work").mkdir(exist_ok=True)
-    report = HW / "work" / "drc.json"
+    (board.parent / "work").mkdir(exist_ok=True)
+    report = board.parent / "work" / "drc.json"
     report.unlink(missing_ok=True)
     r = subprocess.run([KICAD, "pcb", "drc", "--severity-all", "--schematic-parity", "--format", "json",
                         "--output", str(report), str(board)], capture_output=True, text=True)

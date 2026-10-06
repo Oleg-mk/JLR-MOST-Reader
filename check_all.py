@@ -9,6 +9,7 @@ with environment variables:
     MOST25_TO_AUDIO   the reference repo, default C:/Users/geniy/Desktop/MOST25-to-AUDIO
     MINGW_GCC         the host gcc, default C:/Users/geniy/toolchains/mingw64/bin/gcc.exe
     KICAD_CLI         kicad-cli, default %LOCALAPPDATA%/Programs/KiCad/10.0/bin/kicad-cli.exe
+    KICAD_PY          KiCad's python (pcbnew), default %LOCALAPPDATA%/Programs/KiCad/10.0/bin/python.exe
 A missing tool fails its step; nothing is skipped.
 """
 from __future__ import annotations
@@ -31,7 +32,7 @@ STEPS = [
     ("gateware: nco_frame, the frame train (iverilog)", [PY, "reader_gw/sim/run_nco.py"]),
     ("gateware: amp_out + dsp_core + spdif_tx on one clock (iverilog)", [PY, "reader_gw/sim/run_amp.py"]),
     ("gateware: the whole reader from the line (iverilog)", [PY, "reader_gw/sim/run_e2e.py"]),
-    ("sheet: generated anew and unchanged", [PY, "tools/check_sheet.py"]),
+    ("sheets v1.0 and v2.0: generated anew and unchanged", [PY, "tools/check_sheet.py"]),
     ("sheet: ERC (kicad-cli)", ["KICAD", "sch", "erc", "--exit-code-violations", "--output", "reader_hw/erc.rpt",
                                "reader_hw/most_reader.kicad_sch"]),
     ("board: DRC and parity with the sheet (kicad-cli)", [PY, "tools/check_board.py"]),
@@ -46,6 +47,17 @@ STEPS = [
                 "capture_output=True, text=True).stdout; print(o or 'reader_hw/fab is the committed package'); "
                 "sys.exit(1 if o.strip() else 0)"]),
     ("kit: kit/ equal to its sources, the bitstream to the gateware (make_kit.py)", [PY, "tools/make_kit.py", "--check"]),
+    # v2.0: the same circuit plus two series resistors, on a board for a 30x30x1.5 tube (reader_hw2)
+    ("v2.0 sheet: the circuit of v1.0 + R43, R44, part for part and net for net", [PY, "tools/check_v2_circuit.py"]),
+    ("v2.0 sheet: ERC (kicad-cli)", ["KICAD", "sch", "erc", "--exit-code-violations", "--output", "reader_hw2/erc.rpt",
+                                     "reader_hw2/most_reader_v2.kicad_sch"]),
+    ("v2.0 board: DRC and parity with the sheet (kicad-cli)", [PY, "tools/check_board.py", "reader_hw2/most_reader_v2.kicad_pcb"]),
+    ("v2.0 board: in the tube, leads and the caps' cut-outs (check_fit.py)", ["KIPY", "reader_hw2/check_fit.py"]),
+    ("v2.0 fab: the manufacturing package, SMD on the bottom (make_fab.py)", [PY, "reader_hw2/make_fab.py"]),
+    ("v2.0 fab: the package matches the commit",
+     [PY, "-c", "import subprocess, sys; o = subprocess.run(['git', 'status', '--porcelain', '--', 'reader_hw2/fab'], "
+                "capture_output=True, text=True).stdout; print(o or 'reader_hw2/fab is the committed package'); "
+                "sys.exit(1 if o.strip() else 0)"]),
 ]
 
 
@@ -55,9 +67,10 @@ def main() -> int:
     env["PATH"] = os.pathsep.join([str(oss / "bin"), str(oss / "lib"), env.get("PATH", "")])
     kicad = env.get("KICAD_CLI", str(Path(env.get("LOCALAPPDATA", "")) / "Programs" / "KiCad" / "10.0" / "bin"
                                      / "kicad-cli.exe"))
+    kipy = env.get("KICAD_PY", str(Path(kicad).parent / "python.exe"))
     results = []
     for name, cmd in STEPS:
-        cmd = [kicad if c == "KICAD" else c for c in cmd]
+        cmd = [{"KICAD": kicad, "KIPY": kipy}.get(c, c) for c in cmd]
         t0 = time.time()
         try:
             r = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)

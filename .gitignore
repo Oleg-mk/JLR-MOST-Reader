@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 work/
 reader_hw/erc.rpt
+reader_hw2/erc.rpt
 *.kicad_prl
 *-backups/
 ~*.lck

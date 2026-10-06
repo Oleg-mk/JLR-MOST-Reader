@@ -5,6 +5,7 @@
                                         bitstream there
     python tools/make_kit.py --fpga     the same, and take the last build's bitstream into kit/2_fpga
     python tools/make_kit.py --check    change nothing; fail when kit/ differs from its sources
+    python tools/make_kit.py --v2 DIR   write reader v2.0's kit into DIR (it is not kept in the repository)
 
 kit/1_boards   the board order: reader_hw/fab's files for JLCPCB, the full BOM, the schematic and
                the assembly drawing, copied
@@ -15,6 +16,11 @@ kit/2_fpga     reader.fs, the bitstream, with BUILD.txt: the commit it was built
 kit/3_laptop   the laptop's programs: tools/ring_log.py, log_format.py, log_decode.py and what
                log_decode imports, copied byte for byte (line ends aside)
 The READMEs and the launchers in kit/ are written by hand; this script only checks they are there.
+
+v2.0's kit (reader_hw2, the board in a tube) has the same three folders: 1_boards from reader_hw2/fab
+and the READMEs written by hand in reader_hw2/kit; 2_fpga and 3_laptop are kit/'s, whole and as
+committed - the same circuit (tools/check_v2_circuit.py), so the same bitstream and programs. --v2
+refuses while kit/ differs from its sources.
 """
 from __future__ import annotations
 
@@ -57,6 +63,18 @@ BY_HAND = [
     "3_laptop/record.command", "3_laptop/decode.command",
 ]
 TEXT = (".py", ".csv", ".md", ".txt")
+V2_COPIES = {
+    "1_boards/most_reader_v2-gerbers.zip": "reader_hw2/fab/most_reader_v2-gerbers.zip",
+    "1_boards/most_reader_v2-bom-jlcpcb.csv": "reader_hw2/fab/most_reader_v2-bom-jlcpcb.csv",
+    "1_boards/most_reader_v2-cpl-jlcpcb.csv": "reader_hw2/fab/most_reader_v2-cpl-jlcpcb.csv",
+    "1_boards/most_reader_v2-bom.csv": "reader_hw2/fab/most_reader_v2-bom.csv",
+    "1_boards/most_reader_v2-assembly-bottom.pdf": "reader_hw2/fab/most_reader_v2-assembly-bottom.pdf",
+    "1_boards/most_reader_v2-assembly-top.pdf": "reader_hw2/fab/most_reader_v2-assembly-top.pdf",
+    "1_boards/most_reader_v2-schematic.pdf": "reader_hw2/fab/most_reader_v2-schematic.pdf",
+    "1_boards/README.md": "reader_hw2/kit/1_boards/README.md",
+    "README.md": "reader_hw2/kit/README.md",
+}
+V2_SAME = ("2_fpga", "3_laptop")
 # what the bitstream is built from: a difference here from the build's commit makes it stale
 GATEWARE = ["reader_gw/rtl", "reader_gw/board/top_tangnano20k.v", "reader_gw/board/tangnano20k.cst",
             "reader_gw/board/tangnano20k.sdc", "reader_gw/board/build.tcl"]
@@ -155,12 +173,45 @@ def take_fpga() -> None:
     print(f"kit/2_fpga: reader.fs of {commit[:7]}, BUILD_ID {bid:08X}")
 
 
+def make_v2(dest: Path) -> int:
+    """v2.0's kit in dest: its 1_boards and READMEs, kit/'s 2_fpga and 3_laptop (the committed files)."""
+    probs = [f"kit/{d} differs from {s}" for d, s in COPIES.items()
+             if not (KIT / d).exists() or content(KIT / d) != content(ROOT / s)]
+    probs += check_fpga()
+    probs += [f"{s}: missing" for s in V2_COPIES.values() if not (ROOT / s).exists()]
+    same = git("ls-files", "--", *(f"kit/{d}" for d in V2_SAME)).stdout.split()
+    if not same:
+        probs.append("kit/2_fpga, kit/3_laptop: nothing committed")
+    if probs:
+        for p in probs:
+            print("KIT v2: " + p)
+        print("KIT v2: FAIL, nothing written")
+        return 1
+    dest.mkdir(parents=True, exist_ok=True)
+    for d in ("1_boards",) + V2_SAME:
+        if (dest / d).exists():
+            shutil.rmtree(dest / d)
+    (dest / "README.md").unlink(missing_ok=True)
+    for d, s in V2_COPIES.items():
+        (dest / d).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / s, dest / d)
+    for f in same:
+        t = dest / Path(f).relative_to("kit")
+        t.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / f, t)
+    print(f"KIT v2: {dest}: {len(V2_COPIES)} files of v2.0, {len(same)} of kit/2_fpga and kit/3_laptop")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--check", action="store_true", help="change nothing, fail on any difference")
     g.add_argument("--fpga", action="store_true", help="also take the last build's bitstream")
+    g.add_argument("--v2", metavar="DIR", type=Path, help="write reader v2.0's kit into DIR")
     a = ap.parse_args()
+    if a.v2:
+        return make_v2(a.v2.resolve())
 
     probs = []
     for dst, src in COPIES.items():
@@ -180,6 +231,8 @@ def main() -> int:
         take_fpga()
     probs += check_fpga()
     probs += [f"kit/{p}: missing (written by hand)" for p in BY_HAND if not (KIT / p).exists()]
+    probs += [f"{s}: missing (v2.0's kit, written by hand)" for s in V2_COPIES.values()
+              if s.startswith("reader_hw2/kit/") and not (ROOT / s).exists()]
     # the macOS launchers are committed executable (git add --chmod=+x), or a clone cannot run them
     for p in ("3_laptop/record.command", "3_laptop/decode.command"):
         mode = git("ls-files", "-s", "--", f"kit/{p}").stdout.split()[:1]
