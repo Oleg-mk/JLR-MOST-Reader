@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """check_v2_circuit.py - reader v2.0's sheet carries v1.0's circuit, part for part and net for net,
-plus two series resistors.
+plus two series resistors and a smaller C45.
 
 v2.0 is the same electronics on a board for a tube (reader_hw2/README.md), with R43 and R44 (33 and
-68 ohm after U1 and U3, for the long lines of the two-layer board) added. Exports both sheets' netlists
+68 ohm after U1 and U3, for the long lines of the two-layer board) added, and C45 47u in 8 x 10 instead of
+100u in 10 x 10.5 (2026-10-10: the module one header pin nearer J1). Exports both sheets' netlists
 with kicad-cli, shorts out R43 and R44 in v2.0's, and compares every part (reference, value,
 footprint) and every net (its name and the pins on it). Since tools/check_pins.py holds v1.0's sheet
 to the gateware's pin file, the gateware and its bitstream then hold for v2.0 too.
@@ -63,11 +64,16 @@ def short_out(parts, nets, series):
 
 # v2.0 adds these and nothing else: 33 ohm after U1 (RX_BUF), 68 ohm after U3 (RX_IN), for the long lines
 V2_SERIES = {"R43": ("33", "Resistor_SMD:R_0603_1608Metric"), "R44": ("68", "Resistor_SMD:R_0603_1608Metric")}
+# and changes this one part, exactly so (v1.0, v2.0): C45 8 mm across, 2026-10-10
+V2_CHANGED = {"C45": (("100u 63V", "Capacitor_SMD:CP_Elec_10x10.5"), ("47u 63V", "Capacitor_SMD:CP_Elec_8x10"))}
 
 
 def main() -> int:
     (p1, n1), (p2, n2) = (circuit(s) for s in SHEETS.values())
     bad = short_out(p2, n2, V2_SERIES)
+    for ref, (old, new) in V2_CHANGED.items():
+        if p1.get(ref) == old and p2.get(ref) == new:
+            p2[ref] = old
     bad += [f"part {r}: v1.0 {p1.get(r)}, v2.0 {p2.get(r)}" for r in sorted(set(p1) | set(p2)) if p1.get(r) != p2.get(r)]
     bad += [f"net {n}: v1.0 {n1.get(n)}, v2.0 {n2.get(n)}" for n in sorted(set(n1) | set(n2)) if n1.get(n) != n2.get(n)]
     for b in bad[:20]:

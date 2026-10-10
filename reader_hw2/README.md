@@ -1,6 +1,6 @@
 # reader_hw2 - reader v2.0: v1.0's circuit plus two resistors, a board for a tube
 
-v2.0 is v1.0's electronics, plus two series resistors (R43, R44, below), on a board that slides
+v2.0 is v1.0's electronics, plus two series resistors (R43, R44, below) and a smaller C45, on a board that slides
 into a square aluminium tube with two end caps. The user's decisions of 2026-10-05: a 30x30x1.5
 tube (27.0 inside), a board 26.5 mm wide, the module's own USB-C in the far end cap with no
 extension cable; if that cannot be made, a 35x35x2 tube (31 inside) instead. v1.0 (`reader_hw`)
@@ -30,9 +30,11 @@ its blocks 1-7 into this folder, under the project name `most_reader_v2` with it
 changes what describes the board and adds two resistors:
 
 - the title block (rev 2.0) and two lines of notes;
-- the Tang Nano footprint: pads 1..4 are not on this board at all. J4 sits there on the other
-  side, those four pins carry nothing (FPGA 73, 74, 75, 85), and their header pins are left out:
-  the left strip has 16 pins, from pin 5. KiCad's parity check asks no pad of an unconnected pin.
+- the Tang Nano footprint: nine pads only (2026-10-10), 5, 7, 8, 20 and 21, 22, 25, 35, 40: the
+  seven that carry something and one at each corner they leave bare. The strips are cut to them
+  (pieces of one and two pins), and the rows of holes under the module are free for tracks; pins
+  1..4 would sit over J4 on the other side anyway. KiCad's parity check asks no pad of an
+  unconnected pin.
   The footprint also draws the module's real overhangs (USB-C 2 mm, HDMI about 4 mm; v1.0's fab
   text says 8 mm, which was never measured) and carries a 3D body of the module;
 - the FOT footprint's two action pins: rings of 2.1 mm instead of 2.4, so that their copper keeps
@@ -43,9 +45,13 @@ changes what describes the board and adds two resistors:
   U3 at 15-25 ohm, the FPGA pin 6-8 pF) gives 13-31 % overshoot with 33 ohm and at most 8 % with
   68, the edge 1.0-1.6 ns, which the decoder does not mind. R43 stays 33: RX_BUF also drives the
   ring's TX through R2, where a fast edge matters more.
+- C45 47u 63V in 8 x 10 instead of 100u in 10 x 10.5 (2026-10-10): with the 10 mm one against J1's
+  action pin its body covered the module's pad 20 one pin nearer J1. The bulk capacitance on
+  VBAT_P drops from 200 to 147 uF, 9.6 times the 15.3 uF of ceramics there (13 before): still
+  enough to damp the harness against them. C45 then moved to the bus by U6.
 
-`tools/check_v2_circuit.py` compares both sheets' netlists with R43 and R44 shorted out: 58 parts,
-63 nets, no difference.
+`tools/check_v2_circuit.py` compares both sheets' netlists with R43 and R44 shorted out and C45's
+one change allowed: 58 parts, 63 nets, no other difference.
 Since `tools/check_pins.py` holds v1.0's sheet to the gateware's `.cst`, the gateware and the
 bitstream in `kit/2_fpga` hold for v2.0 unchanged.
 
@@ -57,35 +63,38 @@ Both come from J1, not from the module:
   pins stand in 1.8 mm holes whose outer edges are 25.5 mm apart. A 26 mm board would leave
   0.25 mm of FR-4 outside each hole.
 - **Height.** J1 stands 13.25 mm above the board, more than the module's 10.1. With the board and
-  C44/C45 underneath (10.5 + 0.3): 13.25 + 1.6 + 10.8 = 25.65 mm. A 2 mm wall (26 inside) leaves
-  0.35 mm for everything; 1.5 mm (27 inside) leaves 1.35: 0.5 above J1, 0.5 under C45, and the
+  C44 underneath (10.5 + 0.3): 13.25 + 1.6 + 10.8 = 25.65 mm. A 2 mm wall (26 inside) leaves
+  0.35 mm for everything; 1.5 mm (27 inside) leaves 1.35: 0.5 above J1, 0.5 under C44, and the
   window for the board's height.
 
 ## The layout
 
-26.5 x 95 mm, two layers. x runs along the tube from the ring's end (0) to the far end (95).
+26.5 x 84.9 mm, two layers. x runs along the tube from the ring's end (0) to the far end (84.9).
 
 | Side | Where | What |
 |---|---|---|
 | top | ring end | J1, its foot on the edge, its housing 3.6 mm past it |
-| top | x 37..95 | M1 along the tube, its USB-C on the far edge (2 mm past it, into the cap's cut-out) |
+| top | x 31..85 | M1 along the tube, its USB-C on the far edge (2 mm past it, into the cap's cut-out) |
 | bottom | under J1, x 10..22 | the FOT's supply filters on J1's pins; U4 with its RC; R1, U1 and R43 at RXD, R2 at TXD |
-| bottom | x 21..37 | U5 with C46 and C3 behind J1; the bulk capacitors C44 and C45; U3 and R44 (across /WAKE) |
-| bottom | x 34..58 | U6 with C4, C82, C2, C47, R31, C6 and the divider R4, R5; L1 and C7 for 5V_SW; C84, C43, C1 on the VBAT_P bus |
-| bottom | x 56..84 | the input from J4: F1, C83, D2, D1, L2; at the module's 5 V pin D3, C63, C64, C85; R28, C31, C32 for J6 |
+| bottom | x 21..37 | U5 with C46 and C3 behind J1; the bulk capacitor C44 with C47; U3 and R44 (/WAKE between its pads) |
+| bottom | x 34..58 | U6 with C4, C82, C2, R31, C6 and the divider R4, R5; L1 and C7 for 5V_SW; C45, C43, C1, C84 on the VBAT_P bus |
+| bottom | x 54..76 | the input from J4: L2, D1, D2, F1, C83; at the module's 5 V pin C63, C85, D3; R28, C31, C32 for J6 |
 | bottom | far end | J4 (power) under the module's pins 1..4, J6 (TOSLINK) beside it |
 
 Nothing but J1 and M1 is on top: the module's own parts (DC-DC, LDOs, crystals, the microSD slot)
 fill the 2.5 mm under it.
 
 Two lines run long, each from a buffer through a series resistor right after it: RX_IN from U3
-through R44 (68 ohm) to the FPGA's pin 27 (module pad 8), about 58 mm, and RX_BUF from U1 through
-R43 (33 ohm) to R2, U3 and U4, about 42 mm. VBAT_P comes from J4 along the bus at y 11 to U6 and on
-through C4 to C44, C45 and U5; /WAKE runs from U4 to U6, 3V3_SW from pad 7 back to U3.
+through R44 (68 ohm) to the FPGA's pin 27 (module pad 8), 40 mm, and RX_BUF from U1 through R43
+(33 ohm) to U3, R2 and U4, 20, 29 and 32 mm. VBAT_P comes from J4 through L2 along the bus at y 11
+(C1, C43, C45) to U6's input caps and on to C44 and U5; /WAKE runs from U4 to U6, 3V3_SW from pad 7
+to J6 and back along the bottom edge to U3.
 
-**The length.** 95 mm. The first placement was 91 (J1 21.2, the module with its HDMI 58, 11.8
+**The length.** 84.9 mm. The first placement was 91 (J1 21.2, the module with its HDMI 58, 11.8
 between them); the hand placement grew it to 99, and on 2026-10-06 an empty 4 mm strip was cut
-out. The module's end stays on the far edge, its HDMI 15.8 mm clear of J1.
+out (95). On 2026-10-10 the module moved four header pins (10.16 mm) towards J1, three and then
+one more once C45 was 8 mm across, and the far edge, J4 and J6 with it (the edge 10.1 mm, for a
+round tube length). The module's end stays on the far edge, its HDMI 5.65 mm clear of J1.
 
 ## The model: check_fit.py
 
@@ -103,8 +112,8 @@ each number. The checks:
    come up under J1 (it sits 0.45 mm above the board); under the module they are listed, to be
    cut flush;
 5. the ends, with caps 2.0 mm thick: J1's housing 1.6 mm out of the ring cap; the USB-C's face on
-   the far cap's outer face (0.0); J6's port 0.35 out; J4's face 2.0 inside; the HDMI 15.8 mm
-   clear of J1.
+   the far cap's outer face (0.06 inside); J6's port 0.29 out; J4's face 2.06 inside; the HDMI
+   5.65 mm clear of J1.
 
 It prints the caps' cut-outs (y from the left inside wall as seen from outside that end, z from
 the tube's floor, mm), today:
@@ -135,8 +144,9 @@ The model's weak numbers, in the order they matter:
 2. J6 and J4 from the bottom, soldered on top; their leads (and J4's peg) cut flush where the
    module will sit.
 3. J1 on top, soldered underneath.
-4. The module on two strips: 20 pins on the right row, 16 on the left from pin 5; soldered
-   underneath.
+4. The module on nine pins: the strips cut into pieces (5 | 7-8 | 20 and 21-22 | 25 | 35 | 40),
+   put into the board, the module on top, soldered to the module first (the board holds them
+   square), then underneath.
 
 ## Routing, round 1 (2026-10-05, on the user's "розводь плату", two layers)
 
@@ -183,6 +193,28 @@ user put R44 across /WAKE: the resistor is that crossing.
 - The sheet's test points TP6, TP7, TP9, TP10 are not on the board (the user's choice); the kit
   measures on C3 (3V3_AON), C63 (5V_SW) and the module's pin 7 (3V3_SW).
 
+## Modernization (2026-10-10)
+
+The user moved parts in KiCad and I re-routed after each save; the user's sketches and moves
+steered it, and two of my own layouts (the far end with D3 standing, the U4 cluster moved) went
+back as worse. On the way:
+
+- the power section re-placed: C6 between U6 and L1, the SW node 3.7 mm (4.4), C4 straight onto
+  U6's VIN and exposed pad; C45 8 mm across and moved to the bus by U6; C44 0.9 mm towards J1;
+- the module four pins towards J1, the board 84.9 mm, J4 and J6 with the far edge;
+- the module's header cut to nine pins; the freed rows carry RX_IN and 3V3_SW;
+- the far end re-placed by the user: D3 lying, SPDIF between its pads; 3V3_SW from pin 7 between
+  F1's and R28's pads to C31, C32 and J6, and from J6 down to the line under the module;
+- /WAKE and RX_BUF straight across the place C45 left, from the top edge to their runs at
+  x 25.5 and 25.05.
+
+496 mm of copper (541), 75 vias (96); on the top still only the two jumpers, RX_IN over the
+C44 link (1.65 mm) and VBAT_P over RX_BUF and /WAKE (1.75 mm); the top pour in one piece. DRC 0,
+no difference from the sheet, nothing unconnected; the narrowest new gaps are 0.18 mm (/WAKE by
+J1.1's square pad) and 0.19 mm (RX_IN by C82). The fast lines kept their series resistors: their
+value depends on the line's impedance, which did not change, not on its length (RX_IN 53 to
+40 mm, RX_BUF's branches 1 to 4 mm longer).
+
 ## The manufacturing package and the kit
 
 `make_fab.py` writes `fab/` with v1.0's code: the Gerbers (the bottom paste, both silkscreens), the
@@ -199,12 +231,12 @@ and an STL of each (the print's frame: the outer face on the bed), `caps.svg` (e
 outside and in section, the openings' table, the notes) and a README.
 
 - A flange of the tube's outline, 30 mm square and 2.0 mm thick, sits on the tube's end face; the
-  board's ends butt against the flanges, so the tube is 95.0 mm (+0.2/-0), as long as the board.
+  board's ends butt against the flanges, so the tube is 84.9 mm (+0.2/-0), as long as the board.
 - Every opening is its part plus 0.25 mm a side; no wall is thinner than 1.2 mm (three lines of a
   0.4 mm nozzle). J6's body and J4's face share one opening: the web between two would be 0.4 mm.
 - The ring cap's block carries the board's underside at 11.47 mm and ends 1.0 mm before the first
-  part underneath (C8); it stays 2.0 mm off J1's soldered action pins, and a slot along it, open to
-  the inside, lets J1's peg through while the cap slides on under the board.
+  part underneath (8.5 mm into the tube); it stays 2.0 mm off J1's soldered action pins, and a slot
+  along it, open to the inside, lets J1's peg through while the cap slides on under the board.
 - The far cap's block sits over the module's end, 0.5 mm above the USB-C.
 - Each cap takes a self-tapping M2 screw through the tube's wall into its block, the hole in the
   block drilled at assembly: through the floor at the ring end, through the top at the far end.

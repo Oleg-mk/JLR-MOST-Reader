@@ -48,7 +48,7 @@ STEPS = [
                 "sys.exit(1 if o.strip() else 0)"]),
     ("kit: kit/ equal to its sources, the bitstream to the gateware (make_kit.py)", [PY, "tools/make_kit.py", "--check"]),
     # v2.0: the same circuit plus two series resistors, on a board for a 30x30x1.5 tube (reader_hw2)
-    ("v2.0 sheet: the circuit of v1.0 + R43, R44, part for part and net for net", [PY, "tools/check_v2_circuit.py"]),
+    ("v2.0 sheet: the circuit of v1.0 + R43, R44, C45 47u, part for part and net for net", [PY, "tools/check_v2_circuit.py"]),
     ("v2.0 sheet: ERC (kicad-cli)", ["KICAD", "sch", "erc", "--exit-code-violations", "--output", "reader_hw2/erc.rpt",
                                      "reader_hw2/most_reader_v2.kicad_sch"]),
     ("v2.0 board: DRC and parity with the sheet (kicad-cli)", [PY, "tools/check_board.py", "reader_hw2/most_reader_v2.kicad_pcb"]),

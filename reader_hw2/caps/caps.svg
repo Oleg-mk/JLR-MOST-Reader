@@ -15,15 +15,15 @@
 <text x="14.80" y="95.00" font-size="2.6" text-anchor="middle" fill="black" stroke="none" transform="rotate(-90 14.80 95.00)">30.0</text>
 <text x="25.00" y="160.00" font-size="3.0" text-anchor="start" font-weight="bold" fill="black" stroke="none">Виріз: u від … до, v від … до (від зовнішніх країв фланця)</text>
 <text x="25.00" y="165.00" font-size="2.8" text-anchor="start" font-weight="normal" fill="black" stroke="none">корпус J1: u 2.35…28.35 (26.00), v 14.77…28.07 (13.30)</text>
-<text x="25.00" y="170.00" font-size="2.8" text-anchor="start" font-weight="normal" fill="black" stroke="none">блок під платою (пунктир, всередину на 9.0): u 5.20…24.80, v 1.55…12.97</text>
+<text x="25.00" y="170.00" font-size="2.8" text-anchor="start" font-weight="normal" fill="black" stroke="none">блок під платою (пунктир, всередину на 8.5): u 5.20…24.80, v 1.55…12.97</text>
 <text x="25.00" y="175.00" font-size="2.8" text-anchor="start" font-weight="normal" fill="black" stroke="none">паз під фіксатор J1 уздовж блока: u 18.70…21.50, від v 10.57 до верху блока</text>
 <text x="133.00" y="41.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">розріз уздовж труби (всередину — праворуч)</text>
 <path d="M133.00,140.00 L139.00,140.00 L139.00,95.69 L133.00,95.69 Z" stroke-width="0.5"/>
 <path d="M133.00,55.79 L139.00,55.79 L139.00,50.00 L133.00,50.00 Z" stroke-width="0.5"/>
 <text x="131.50" y="75.74" font-size="2.4" text-anchor="end" font-weight="normal" fill="black" stroke="none">виріз</text>
-<path d="M139.00,135.35 L166.00,135.35 L166.00,101.09 L139.00,101.09 Z" stroke-width="0.5"/>
-<line x1="139.00" y1="95.09" x2="166.00" y2="95.09" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
-<text x="152.50" y="93.89" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">9.0</text>
+<path d="M139.00,135.35 L164.50,135.35 L164.50,101.09 L139.00,101.09 Z" stroke-width="0.5"/>
+<line x1="139.00" y1="95.09" x2="164.50" y2="95.09" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="151.75" y="93.89" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">8.5</text>
 <line x1="133.00" y1="150.50" x2="139.00" y2="150.50" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
 <text x="136.00" y="149.30" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">2.0</text>
 <path d="M139.00,101.09 L175.00,101.09 L175.00,96.29 L139.00,96.29 Z" stroke-width="0.2" stroke-dasharray="1.5,1"/>
@@ -68,9 +68,9 @@
 <text x="382.50" y="137.75" font-size="2.4" text-anchor="start" font-weight="normal" fill="black" stroke="none">стінка труби</text>
 <text x="12.00" y="249.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Друк: FDM із PETG або ASA (PLA у машині м'якне), або замовлення MJF PA12; зовнішньою гранню на стіл, без підтримок.</text>
 <text x="12.00" y="254.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Стінки не тонші 1.2 мм. Фланець 2.0 мм лягає на торець труби, плата впирається в нього торцем.</text>
-<text x="12.00" y="259.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Труба 30×30×1.5, довжина 95.0 +0.2/−0 мм, торці рівні й без задирок: плата між фланцями.</text>
+<text x="12.00" y="259.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Труба 30×30×1.5, довжина 84.9 +0.2/−0 мм, торці рівні й без задирок: плата між фланцями.</text>
 <text x="12.00" y="264.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Фіксація: по одному саморізу M2×6 на кришку. Отвір Ø2.2 у стінці труби, у блок свердлити Ø1.6 при складанні:</text>
-<text x="12.00" y="269.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  кільцева — у дні труби, 4.5 мм від торця, по осі; дальня — у стелі труби, 3.0 мм від торця, по осі.</text>
+<text x="12.00" y="269.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  кільцева — у дні труби, 4.2 мм від торця, по осі; дальня — у стелі труби, 3.0 мм від торця, по осі.</text>
 <text x="12.00" y="274.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Кільцеву кришку надягати після плати: паз у блоці пропускає фіксатор J1, блок стає під плату.</text>
 <text x="12.00" y="279.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Земля труби: під голову саморіза дальньої кришки — кільцевий наконечник M2 і зубчаста шайба; провід 3–5 см</text>
 <text x="12.00" y="284.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  до мінуса джгута J4 біля колодки (пайка, термоусадка). Труба без покриття або зачищена під шайбою.</text>

@@ -9,8 +9,10 @@ and the sheet with reader_hw/make_fab.py's code. What differs from v1.0's packag
     pads of all 52 parts: each library footprint, seen from below, sits at 180 minus KiCad's angle);
   * two assembly drawings: the bottom seen from below (the SMD parts, and J4, J6, which go in from
     below) and the top (J1, M1);
-  * the LCSC table gains R44's 68 ohm (2026-10-06); R43's 33 ohm is R28's part;
-  * the README describes the 26.5 x 95 mm board in its tube.
+  * the LCSC table gains R44's 68 ohm (2026-10-06) and C45's 47u 63V 8 x 10 (2026-10-10: SamYoung
+    MVK, C165628; its LCSC footprint has pad 1 and the + on the left as KiCad's CP_Elec, turn 0);
+    R43's 33 ohm is R28's part;
+  * the README describes the board in its tube and the module's nine header pins.
 
 v1.0's make_fab.py is not touched: its LCSC table, its rotations, its hand parts and its helpers are
 used from there.
@@ -39,6 +41,9 @@ OUT = HERE / "fab"
 LAYERS = "F.Cu,B.Cu,B.Paste,F.Silkscreen,B.Silkscreen,F.Mask,B.Mask,Edge.Cuts"
 LCSC = dict(v1.LCSC)
 LCSC[("68", v1.R)] = ("C27592", "UNI-ROYAL 0603WAF680JT5E")     # R44, 2026-10-06, the same series as the others
+# C45, 2026-10-10: 8 mm across so the module sits one pin nearer J1; SamYoung like C44, but no CLZ
+# (125 C) comes in 47u 63V 8 x 10 at LCSC: MVK, 105 C, 2000 h
+LCSC[("47u 63V", "CP_Elec_8x10")] = ("C165628", "SamYoung MVK 63V 47uF 8x10, 105 C")
 
 
 def jlc_rotation(p):
@@ -125,8 +130,11 @@ after any change to the board: `check_all.py` fails while this folder does not m
 ## Notes for the parts
 
 - Every SMD part is on the bottom; on the top only J1 and M1.
-- M1 (Tang Nano 20K) is soldered in on its own pin headers, no sockets: 20 pins on the row of pins
-  21..40, 16 on the other row from pin 5. Pins 1..4 have no holes: J4 sits under them, from below.
+- M1 (Tang Nano 20K) is soldered in on its own pin headers, no sockets, on nine pins only: 5, 7, 8,
+  20 on one row and 21, 22, 25, 35, 40 on the other (the seven that carry something and one at
+  each corner they leave bare). The other holes are not there. Cut the strips into pieces of one
+  and two pins (5 | 7-8 | 20 and 21-22 | 25 | 35 | 40), put them into the board, the module on top,
+  and solder them to the module first: the board holds them square. Pins 1..4 would sit over J4.
   The module's pin 16 (LED1, header 7) is 3V3_SW, the supply of U3 and J6, held high by the
   gateware: the module's own 3.3 V pins (19, 36) are not wired.
 - J4 and J6 go in from below and are soldered on the top; under the module their leads are cut
@@ -144,7 +152,8 @@ after any change to the board: `check_all.py` fails while this folder does not m
 2. **Assembly.** Bottom side, "Confirm parts placement" on. No part is consigned.
 3. **BOM and CPL.** Upload `{NAME}-bom-jlcpcb.csv` and `{NAME}-cpl-jlcpcb.csv`: {jlc['lines']} lines,
    {jlc['codes']} LCSC parts, {jlc['parts']} parts a board, all on the bottom. The parts are v1.0's
-   (chosen on 2026-10-01 for the listener board, C32's 1u on 2026-10-04) and R44's 68 ohm, C27592.
+   (chosen on 2026-10-01 for the listener board, C32's 1u on 2026-10-04), R44's 68 ohm, C27592, and
+   C45's 47u 63V 8 x 10, C165628 (2026-10-10).
    JLCPCB shows the stock on upload; a part it holds too few of is bought from LCSC on the same
    BOM page.
 4. **Placement preview.** JLCPCB shows the bottom seen from below. Before paying, check pin 1 of

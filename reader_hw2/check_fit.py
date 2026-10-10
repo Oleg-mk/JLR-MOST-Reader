@@ -53,6 +53,7 @@ HEIGHT = {
     "Everlight_TOSLINK_T10": (10.0, "Everlight DPL-0000256: body 10.00"),
     "Molex_Micro-Fit_3.0_43650-0200_1x02_P3.00mm_Horizontal": (6.07, "Molex 43650-0200 part page: height 6.07"),
     "CP_Elec_10x10.5": (10.8, "10 x 10.5 electrolytic, 10.5 + 0.3"),
+    "CP_Elec_8x10": (10.5, "8 x 10 electrolytic, 10.2 + 0.3"),
     "CP_Elec_6.3x7.7": (8.0, "6.3 x 7.7 electrolytic, 7.7 + 0.3"),
     "L_Bourns-SRN8040_8x8.15mm": (4.2, "Bourns SRN8040: 4.0 typ"),
     "L_Bourns_SRN6045TA": (4.5, "Bourns SRN6045TA: 4.5 max"),
