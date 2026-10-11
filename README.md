@@ -38,6 +38,10 @@ SpeakerLevel in dB, their raw-to-dB curve has to be measured from a recording (s
 
 ## What it does
 
+- **Not an amplifier emulator.** An emulator takes the factory amplifier's place on the ring and
+  answers the head unit as the amplifier. This reader takes no place on the network: the factory
+  amplifier stays in the ring and keeps working, and the reader listens to the stereo sent to it
+  and processes it. In effect it is a MOST bus sniffer with an audio path.
 - **Sits in the ring like any MOST device:** fibre in, fibre out. A loop-in adapter cable opens the
   ring at an existing node's connector.
 - **Decodes the control channel:** Connect and DisConnect to the amplifier (node 0x186, FBlock
@@ -61,7 +65,8 @@ one clock and replaces both the MOST chip and the host CPU that a design like th
 - **Target:** Jaguar XF X250 (2008-2015). The messages it decodes are the ones open projects
   recorded on JLR cars (see [SOURCES.md](SOURCES.md)).
 - **What the car must have:** a MOST25 ring at 48 kHz, and a separate amplifier that receives its
-  audio over that ring.
+  audio over that ring. The amplifier stays in place: it is the node the head unit sends the audio
+  to.
 - **Other cars:** other JLR models of the same generation with the same setup are candidates;
   Freelander 2 is the one with published evidence. Volume messages differ between models, and the
   logger exists to find that out.
@@ -225,12 +230,12 @@ need the author's earlier, unpublished project and fail without it ([SOURCES.md]
 
 Copyright 2026 Oleg-mk.
 
-- **Hardware, under CERN-OHL-S-2.0** ([LICENSE-CERN-OHL-S-2.0.txt](LICENSE-CERN-OHL-S-2.0.txt)):
+- **Hardware, under CERN-OHL-S-2.0** ([LICENSE](LICENSE)):
   - `reader_hw/`, `reader_hw2/` (the KiCad design and the scripts that generate it, footprints,
     3D models, fabrication files, end caps);
   - the gateware in `reader_gw/rtl/` and `reader_gw/board/`;
   - `kit/1_boards/` and `kit/2_fpga/`.
-- **Software, under GPL-3.0-or-later** ([LICENSE-GPL-3.0.txt](LICENSE-GPL-3.0.txt)):
+- **Software, under GPL-3.0-or-later** ([COPYING](COPYING)):
   `virtual_most_source/`, `tools/`, `reader_gw/sim/`, `kit/3_laptop/` and `check_all.py`.
 - **Documentation:** each README and drawing is under the licence of the directory it sits in.
 
