@@ -348,4 +348,6 @@ between 102 and 125 MHz. So:
    the ring asleep, so the first wake is in the file. Never open the port in another terminal
    program.
 6. During the drive: a mark at every control stepped (volume up and down, nav prompt, phone,
-   reverse gear), with the value the screen shows said or typed.
+   reverse gear) and at every chime (key, seat belt, door), with the value the screen shows said
+   or typed. Reverse gear and the chimes tell whether the parking tones and the chimes come as
+   audio on sinks 3 and 4 or as commands the amplifier makes the sound from.

@@ -485,7 +485,10 @@ asks "Allow accessory to connect?": answer "Allow".
 - One passive cable, as short as you can.
 - Start recording while the car is locked and the ring asleep, so the first wake-up is in the file.
 - Don't open the port with any other program (terminals, Gowin Programmer).
-- Set a mark on every action: volume up and down, a navigation prompt, the phone, reverse gear.
+- Set a mark on every action: volume up and down, a navigation prompt, the phone, reverse gear,
+  and every chime or warning sound (key, seat belt, door open). Reverse gear and the chimes show
+  whether the parking tones and the chimes come over the ring as audio (sinks 3 and 4) or as
+  commands the amplifier turns into sound itself.
 
 ### Decoding at home
 
