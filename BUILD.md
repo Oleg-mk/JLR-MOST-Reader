@@ -519,7 +519,10 @@ The result goes to `logs/<date>-<time>.d/`; a single segment's to `logs/<date>-<
 1. **Mounting:** fix the reader with the tube's floor down, four screws through the saddles' ears.
 2. **The bypass alone:** the reader in the ring, powered, and the car must sound exactly as
    before.
-3. **The reader with a recording:** then a drive with the log running.
+3. **If your amplifier takes over the factory speakers:** the factory amplifier stays in the ring,
+   powered, and is left without them; expect speaker-open codes in it (README, "The factory
+   amplifier"). What else the car does then is still being looked into: please report it.
+4. **The reader with a recording:** then a drive with the log running.
 
 The recording answers what only the car can (the [README](README.md#status-what-is-proved-and-what-is-not)
 lists it). Please share it, and what the reader did, so the firmware can follow what your car

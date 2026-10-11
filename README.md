@@ -2,13 +2,18 @@
 
 A listen-only adapter for the MOST25 optical ring in Jaguar and Land Rover cars. It takes the stereo
 the head unit sends to the factory amplifier and outputs it as S/PDIF on a TOSLINK socket, for an
-aftermarket DSP or amplifier. **The car's own volume knob and steering-wheel buttons keep working:
-the reader applies their level digitally, with no loss of quality** ([how](#volume-from-the-cars-own-controls-with-no-loss-of-quality)).
+aftermarket DSP or amplifier. On MOST that audio travels round the ring in channels any node can
+read, so the reader can hear exactly what the amplifier plays.
+**The car's own volume knob and steering-wheel buttons keep working: the reader applies their level
+digitally, with no loss of quality** ([how](#volume-from-the-cars-own-controls-with-no-loss-of-quality)).
 It can also log everything it sees on the ring to a laptop over USB.
 
 **Status, 2026-10-11: designed and verified in simulation, but never built and never tried in a
 car.** The author can't build it locally, so the whole design is published here for anyone who can.
 Every file you need to order, flash and assemble one is in this repository.
+
+**This is a research project.** Every finding, recording, correction or bit of help is welcome
+and will go into the project: open an issue or a pull request, or write in the forum thread.
 
 ![The v2.0 board in its 30x30 mm aluminium tube, cut open](reader_hw2/views/reader_v2_in_tube.png)
 
@@ -40,8 +45,8 @@ SpeakerLevel in dB, their raw-to-dB curve has to be measured from a recording (s
 
 - **Not an amplifier emulator.** An emulator takes the factory amplifier's place on the ring and
   answers the head unit as the amplifier. This reader takes no place on the network: the factory
-  amplifier stays in the ring and keeps working, and the reader listens to the stereo sent to it
-  and processes it. In effect it is a MOST bus sniffer with an audio path.
+  amplifier stays in the ring and keeps working, and the reader reads the same audio channels the
+  amplifier plays and processes them. In effect it is a MOST bus sniffer with an audio path.
 - **Sits in the ring like any MOST device:** fibre in, fibre out. A loop-in adapter cable opens the
   ring at an existing node's connector.
 - **Decodes the control channel:** Connect and DisConnect to the amplifier (node 0x186, FBlock
@@ -66,9 +71,14 @@ one clock and replaces both the MOST chip and the host CPU that a design like th
 
 - **Target:** Jaguar XF X250 (2008-2015). The messages it decodes are the ones open projects
   recorded on JLR cars (see [SOURCES.md](SOURCES.md)).
-- **What the car must have:** a MOST25 ring at 48 kHz, and a separate amplifier that receives its
-  audio over that ring. The amplifier stays in place: it is the node the head unit sends the audio
-  to.
+- **What the car must have:** a MOST25 ring at 48 kHz, and a separate amplifier that gets its audio
+  over that ring. The amplifier stays in place: the head unit sends the audio to it, and the reader
+  finds that audio from the Connect messages addressed to the amplifier.
+- **Not the standard audio.** In cars where the head unit's own amplifier drives the speakers (the
+  XF's standard audio), no audio for an amplifier travels the ring, so the reader has nothing to
+  take. Switching the car's configuration from premium to standard stops that audio (a forum
+  member with SDD), and mObridge's guide asks for the car to be coded when the factory MOST
+  amplifier is missing ([SOURCES.md](SOURCES.md)).
 - **Other cars:** other JLR models of the same generation with the same setup are candidates;
   Freelander 2 is the one with published evidence. Volume messages differ between models, and the
   logger exists to find that out.
@@ -99,6 +109,34 @@ ring in -> FOT receiver -> R1 -> U1 (one 74LVC1G34 buffer) -> R2 -> FOT transmit
 - **Start-up volume:** until the first volume message arrives, the main source plays at -12 dB, and
   phone/navigation, the parking sensors and the chimes at -6 dB. Keep your DSP's or amplifier's own gain low on the
   first drive.
+
+## The factory amplifier
+
+The reader only listens, so the factory amplifier stays in the ring, powered, and keeps playing.
+That is the price of not emulating it, and it decides how you use the output.
+
+- **Add to the stock system:** a subwoofer, a second amplifier, a DSP for extra speakers. Nothing
+  in the car changes.
+- **Take the factory speakers over:** your amplifier, fed by the reader, drives the factory
+  speakers, and the factory amplifier is left without them.
+  - **Fault codes:** it tests its speaker lines, so expect speaker-open codes in it. An XKR owner
+    who did exactly this with a commercial MOST interface reports codes for the amplifier and
+    every speaker that come back after clearing ([SOURCES.md](SOURCES.md)).
+  - **Anything beyond the codes** is still being looked into. Findings are welcome.
+  - **The service sounds:** per mObridge's guide, JLR sends the phone, navigation and voice prompts
+    (sink 2), the parking sensors (sink 3) and the chimes (sink 4) to the amplifier over the ring
+    as audio. The reader plays all of them, so moving the speakers loses none. The first
+    recording will confirm it: the trip instructions ask for a mark at reverse gear and at every
+    chime.
+
+**Can the reader replace the factory amplifier? No.**
+- **Nobody answers for it.** The reader has no address and sends nothing, by hardware: the ring's
+  transmitter is driven by one buffer, and the FPGA has no way onto it. With the amplifier gone,
+  nobody answers as node 0x186 / FBlock 0x22.
+- **The car needs it.** An XF owner who bypassed the amplifier with a fibre loop reports the screen
+  stuck on the logo and no sound ([SOURCES.md](SOURCES.md)).
+- **That is an emulator's job.** Taking the amplifier's place means transmitting on MOST.
+- **It must stay powered.** Without power its own bypass goes dark and the ring opens.
 
 ## Status: what is proved and what is not
 
