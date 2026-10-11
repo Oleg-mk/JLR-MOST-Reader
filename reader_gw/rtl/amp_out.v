@@ -1,7 +1,8 @@
 // amp_out.v - what the factory amplifier would play, as S/PDIF, on one clock.
 //
-// Up to three sources are picked out of the frame (stream 0 is the main one: what the
-// amplifier's sink 1 plays; 1 and 2 its other sinks, navigation, phone, chimes), run through
+// Up to four sources are picked out of the frame (stream 0 is the main one: what the
+// amplifier's sink 1 plays; 1..3 its sinks 2..4, on JLR phone, navigation and voice, the parking
+// sensors, the chimes), run through
 // dsp_core (tone on stream 0 - straight here - then a mix into L and R with gliding gains), and
 // leave as S/PDIF (spdif_tx.v) for the TOSLINK transmitter. A sample leaves one frame after the
 // frame it came in; the whole delay from the ring is about two frames.
@@ -17,7 +18,7 @@
 //   01  P  L0 L1 L2  R0 R1 R2      where a stream is in the frame
 //     P[1:0]  0 = off (zeros in), 2 = 16 bit, 3 = 24 bit
 //     P[2]    mono: the left bytes only, fed to both sides
-//     P[5:4]  stream 0..2
+//     P[5:4]  stream 0..3
 //     P[7:6], P[3] zero; anything else is refused whole
 //     L0..R2  frame byte index 0..63 of each sample byte, MSB first (L2/R2
 //             ignored at 16 bit, R0..R2 when mono)
@@ -69,7 +70,7 @@ module amp_out (
     output wire [7:0]  commit_tag,
     output wire        bank_sw,             // pulse: the engine took the new bank
     output wire        estart,              // pulse: the engine starts on in_w
-    output wire [143:0] in_w_o,
+    output wire [191:0] in_w_o,
     output wire [47:0] out_w_o
 );
     integer k, s;
@@ -84,27 +85,27 @@ module amp_out (
     always @(posedge clk) begin ok_q <= cmd_ok & ~rst; cmd_q <= cmd; p_q <= cmd_p; end
     assign cq_ok = ok_q; assign cq_cmd = cmd_q; assign cq_p = p_q;
     wire [7:0] p0 = p_q[55:48];
-    wire       p0_ok = p0[7:6] == 2'd0 && !p0[3] && p0[5:4] != 2'd3 && p0[1:0] != 2'd1;
+    wire       p0_ok = p0[7:6] == 2'd0 && !p0[3] && p0[1:0] != 2'd1;
     // decoded once more: a strobe per stream and the fields, so the writes
     // below are plain enables (the 6s+k address arithmetic was a slow path)
-    reg  [2:0]  w01;                        // write stream 0 / 1 / 2
+    reg  [3:0]  w01;                        // write stream 0 / 1 / 2 / 3
     reg  [1:0]  w01_w;
     reg         w01_m;
     reg  [35:0] w01_p;
     always @(posedge clk) begin
-        for (s = 0; s < 3; s = s + 1) w01[s] <= ok_q && cmd_q == 8'h01 && p0_ok && p0[5:4] == s[1:0] && !rst;
+        for (s = 0; s < 4; s = s + 1) w01[s] <= ok_q && cmd_q == 8'h01 && p0_ok && p0[5:4] == s[1:0] && !rst;
         w01_w <= p0[1:0]; w01_m <= p0[2];
         for (k = 0; k < 6; k = k + 1) w01_p[6 * k +: 6] <= p_q[45 - 8 * k -: 6];
     end
-    reg  [5:0] pnew [0:17];                 // stream s: L0 L1 L2 R0 R1 R2 at 6s..6s+5
-    reg  [1:0] wnew [0:2];
-    reg        mnew [0:2];
+    reg  [5:0] pnew [0:23];                 // stream s: L0 L1 L2 R0 R1 R2 at 6s..6s+5
+    reg  [1:0] wnew [0:3];
+    reg        mnew [0:3];
     always @(posedge clk) begin
         if (rst) begin
-            for (s = 0; s < 3; s = s + 1) begin wnew[s] <= 2'd0; mnew[s] <= 1'b0; end
-            for (k = 0; k < 18; k = k + 1) pnew[k] <= 6'd0;
+            for (s = 0; s < 4; s = s + 1) begin wnew[s] <= 2'd0; mnew[s] <= 1'b0; end
+            for (k = 0; k < 24; k = k + 1) pnew[k] <= 6'd0;
         end else begin
-            for (s = 0; s < 3; s = s + 1)
+            for (s = 0; s < 4; s = s + 1)
                 if (w01[s]) begin
                     wnew[s] <= w01_w;
                     mnew[s] <= w01_m;
@@ -116,7 +117,7 @@ module amp_out (
     // --------------------------------------- pick the bytes of each frame
     // A command takes effect at the next frame boundary, so no frame is ever
     // put together from two different sets of positions.
-    // The byte stream is registered once more here: 18 address compares fed
+    // The byte stream is registered once more here: the address compares (18 then, 24 now) fed
     // straight from rx_framer's registers, across the chip, were the
     // slowest path. frame_done is delayed with it, so byte 63 lands before
     // the copy into fin.
@@ -126,27 +127,27 @@ module amp_out (
     always @(posedge clk) begin
         we_q <= byte_we & ~rst; fd_q <= frame_done & ~rst; ba_q <= byte_addr; bd_q <= byte_data;
     end
-    reg [5:0] pos [0:17];                   // in effect for the frame being collected
-    reg [7:0] cur [0:17];                   // being collected
-    reg [7:0] fin [0:17];                   // last complete frame, stable ~1 frame
-    reg [1:0] wid [0:2], wfin [0:2];        // width in effect / with fin
-    reg       mon [0:2], mfin [0:2];
+    reg [5:0] pos [0:23];                   // in effect for the frame being collected
+    reg [7:0] cur [0:23];                   // being collected
+    reg [7:0] fin [0:23];                   // last complete frame, stable ~1 frame
+    reg [1:0] wid [0:3], wfin [0:3];        // width in effect / with fin
+    reg       mon [0:3], mfin [0:3];
     always @(posedge clk) begin
         if (rst) begin
-            for (s = 0; s < 3; s = s + 1) begin
+            for (s = 0; s < 4; s = s + 1) begin
                 wid[s] <= 2'd0; wfin[s] <= 2'd0; mon[s] <= 1'b0; mfin[s] <= 1'b0;
             end
-            for (k = 0; k < 18; k = k + 1) pos[k] <= 6'd0;
+            for (k = 0; k < 24; k = k + 1) pos[k] <= 6'd0;
         end else begin
             if (we_q)
-                for (k = 0; k < 18; k = k + 1)
+                for (k = 0; k < 24; k = k + 1)
                     if (ba_q == pos[k]) cur[k] <= bd_q;
             if (fd_q) begin
-                for (k = 0; k < 18; k = k + 1) begin
+                for (k = 0; k < 24; k = k + 1) begin
                     fin[k] <= cur[k];
                     pos[k] <= pnew[k];
                 end
-                for (s = 0; s < 3; s = s + 1) begin
+                for (s = 0; s < 4; s = s + 1) begin
                     wfin[s] <= wid[s]; wid[s] <= wnew[s];
                     mfin[s] <= mon[s]; mon[s] <= mnew[s];
                 end
@@ -157,16 +158,16 @@ module amp_out (
     // the samples, as the engine takes them: fin changes at a frame completion,
     // about 2.6 us (128 ticks) before the train's frame start, where the
     // engine latches in_w, and holds for the rest of the frame
-    reg [143:0] in_w;
+    reg [191:0] in_w;
     reg [23:0]  l24, r24;
     always @(posedge clk) begin
-        for (k = 0; k < 3; k = k + 1) begin
+        for (k = 0; k < 4; k = k + 1) begin
             l24 = (wfin[k] == 2'd3) ? {fin[6 * k], fin[6 * k + 1], fin[6 * k + 2]} :
                   (wfin[k] == 2'd2) ? {fin[6 * k], fin[6 * k + 1], 8'd0} : 24'd0;
             r24 = (wfin[k] == 2'd3) ? {fin[6 * k + 3], fin[6 * k + 4], fin[6 * k + 5]} :
                   (wfin[k] == 2'd2) ? {fin[6 * k + 3], fin[6 * k + 4], 8'd0} : 24'd0;
-            in_w[143 - 48 * k -: 24] <= l24;
-            in_w[119 - 48 * k -: 24] <= mfin[k] ? l24 : r24;
+            in_w[191 - 48 * k -: 24] <= l24;
+            in_w[167 - 48 * k -: 24] <= mfin[k] ? l24 : r24;
         end
     end
 
@@ -196,7 +197,7 @@ module amp_out (
     // compared as it will be then (w03_t if a word lands now), so words one
     // clock apart compare right. Done in the clock of the word, the compare,
     // the 47-bit pick and the AND over all of it came to 9.3 ns before the
-    // commit's enables: inside 10.1 ns, not inside check_timing.py's 10 %.
+    // commit's enables: inside 10.1 ns, not inside check_timing.py's 10 %. (47 words then, 49 now.)
     reg                    same_q = 1'b0;
     reg  [DSP_C_IMAGE-1:0] a_bit = {DSP_C_IMAGE{1'b0}};
     always @(posedge clk) begin
@@ -241,7 +242,7 @@ module amp_out (
                     .c_q(c_q), .out_w(out_w), .running(running), .overrun(overrun));
 
     // ------------------------------------------------ S/PDIF out
-    // out_w is written during the program run (~450 clocks after the frame
+    // out_w is written during the program run (~480 clocks after the frame
     // start) and latched by spdif_tx at the next frame start
     spdif_tx u_sp (.clk(clk), .run(run), .tick(tick), .fstart(fstart), .sub(sub), .phase_n(phase_n), .lr(out_w),
                    .rate48(rate48), .word(spdif_word), .out(spdif));

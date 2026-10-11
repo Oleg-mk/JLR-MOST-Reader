@@ -2,9 +2,9 @@
 """dsp_asm.py - the program dsp_core.v runs, its memory map, and a bit-exact model.
 
 The FPGA does what the factory amplifier does to the sound, for our own
-output: tone on the main source, then a mix of up to three sources into L and
-R with smoothly changing gains (volume, balance, the navigation and phone
-levels). dsp_core.v is a small multiply-accumulate engine; this file is the
+output: tone on the main source, then a mix of up to four sources into L and
+R with smoothly changing gains (volume, balance, the levels of the phone and
+navigation, the parking sensors and the chimes). dsp_core.v is a small multiply-accumulate engine; this file is the
 only place its program exists.
 
     python dsp_asm.py        writes ../rtl/dsp_prog.vh (the program ROM) and the
@@ -17,7 +17,7 @@ accumulates in 72 bits. A 24-bit input sample enters as sample << 5.
 Instructions, 18 bit: op[17:14], a[13:7], b[6:0]. C = coefficients (written by
 the host, 64 words per bank), D = data (the engine's own, 128 words).
     NOP
-    IN    a=k  b      D[b] = input sample k (0..5: s0L s0R s1L s1R s2L s2R), Q4.28
+    IN    a=k  b      D[b] = input sample k (0..7: s0L s0R s1L s1R s2L s2R s3L s3R), Q4.28
     LDE   b           acc = D[b][27:0]          (a remainder saved by STR)
     ADZ   a           acc = C[a] << 28          (C[a] x 1.0)
     MACZ  a  b        acc = C[a] * D[b]
@@ -51,7 +51,7 @@ OPS = {"NOP": 0, "IN": 1, "LDE": 2, "ADZ": 3, "MACZ": 4, "MAC": 5, "MACS": 6, "M
 OPNAME = {v: k for k, v in OPS.items()}
 
 N_BQ = 8                    # biquads per side on stream 0
-N_STREAMS = 3
+N_STREAMS = 4
 N_OUT = 2                   # L R
 OUT_NAMES = ("L", "R")
 OUT_SIDE = (0, 1)           # 0 = left input, 1 = right
@@ -61,8 +61,8 @@ ONE = 1 << FRAC
 # ------------------------------------------------------------------ C map
 # per biquad: b0 b1 b2, then -a1 -a2 (the engine only adds)
 C_BQ = 0                                    # C_BQ + 5*b + {0..4}
-C_KT = C_BQ + 5 * N_BQ                      # 40..45: k*target, stream s -> output o: C_KT + 2*s + o
-C_1MK = C_KT + N_STREAMS * N_OUT            # 46: 1 - k
+C_KT = C_BQ + 5 * N_BQ                      # 40..47: k*target, stream s -> output o: C_KT + 2*s + o
+C_1MK = C_KT + N_STREAMS * N_OUT            # 48: 1 - k
 C_WORDS = 64
 
 
@@ -78,9 +78,9 @@ def c_kt(s, o):
 # node n of a side (0 = input of stream 0, n = output of biquad n-1): cur, d1, d2
 D_NODE = (0, 3 * (N_BQ + 1))                # side L 0..26, side R 27..53
 D_REM = (6 * (N_BQ + 1), 6 * (N_BQ + 1) + N_BQ)   # remainders: side L 54..61, side R 62..69
-D_IN = D_REM[1] + N_BQ                      # 70..73: s1L s1R s2L s2R
-D_G = D_IN + 4                              # 74..79: gains, stream s -> output o
-D_TRASH = D_G + N_STREAMS * N_OUT           # 80
+D_IN = D_REM[1] + N_BQ                      # 70..75: s1L s1R s2L s2R s3L s3R
+D_G = D_IN + 2 * (N_STREAMS - 1)            # 76..83: gains, stream s -> output o
+D_TRASH = D_G + N_STREAMS * N_OUT           # 84
 D_WORDS = 128
 
 
@@ -92,7 +92,7 @@ def d_rem(side, b):
     return D_REM[side] + b
 
 
-def d_in(s, side):                           # streams 1 and 2
+def d_in(s, side):                           # streams 1 .. N_STREAMS-1
     return D_IN + 2 * (s - 1) + side
 
 
@@ -107,9 +107,10 @@ def program():
     def ins(op, a=0, b=0, note=""):
         p.append((OPS[op], a, b, note))
 
-    for k, (dst, name) in enumerate([(d_node(0, 0, 0), "s0L"), (d_node(1, 0, 0), "s0R"),
-                                     (d_in(1, 0), "s1L"), (d_in(1, 1), "s1R"),
-                                     (d_in(2, 0), "s2L"), (d_in(2, 1), "s2R")]):
+    ins_list = [(d_node(0, 0, 0), "s0L"), (d_node(1, 0, 0), "s0R")]
+    for s in range(1, N_STREAMS):
+        ins_list += [(d_in(s, 0), f"s{s}L"), (d_in(s, 1), f"s{s}R")]
+    for k, (dst, name) in enumerate(ins_list):
         ins("IN", k, dst, name)
     for side in (0, 1):
         sn = "LR"[side]
@@ -124,8 +125,8 @@ def program():
     for o in range(N_OUT):
         side = OUT_SIDE[o]
         ins("MACDZ", d_g(0, o), d_node(side, N_BQ, 0), f"{OUT_NAMES[o]}")
-        ins("MACD", d_g(1, o), d_in(1, side))
-        ins("MACD", d_g(2, o), d_in(2, side))
+        for s in range(1, N_STREAMS):
+            ins("MACD", d_g(s, o), d_in(s, side))
         ins("OUT", o)
     for side in (0, 1):                      # the last node's delay line
         ins("MOV", d_node(side, N_BQ, 1), d_node(side, N_BQ, 2), "last node moves on")
@@ -175,7 +176,7 @@ class Engine:
         self.sat_str = self.sat_out = 0     # how often each saturation was hit (coverage)
 
     def run(self, c, ins24):
-        """c: 64 coefficient words (signed). ins24: 6 input samples (signed 24 bit).
+        """c: 64 coefficient words (signed). ins24: 8 input samples (signed 24 bit).
         Returns the outputs L, R (signed 24 bit)."""
         d = self.d
         out = [0] * N_OUT
@@ -313,7 +314,7 @@ def check_map():
                 used.add(d_node(side, n, t))
         for b in range(N_BQ):
             used.add(d_rem(side, b))
-    for s in (1, 2):
+    for s in range(1, N_STREAMS):
         for side in (0, 1):
             used.add(d_in(s, side))
     for s in range(N_STREAMS):

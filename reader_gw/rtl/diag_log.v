@@ -15,8 +15,8 @@
 //   producer  record   when
 //   0 BLOCK    56 B    frame 15 done (+BLK_DELAY clocks, for the decoder's verdict), or the
 //                      next block's first byte 0 if frame 15 never came (partial)
-//   1 STATUS   94 B    every 2^STAT_LOG2 clocks
-//   2 SET      22 B    a coefficient set's last word (address 46)
+//   1 STATUS   99 B    every 2^STAT_LOG2 clocks
+//   2 SET      26 B    a coefficient set's last word (address 48)
 //   3 CMD      16 B    a command 01 (a 4-deep queue)
 //   4 EVENT    14 B    a slot of the event table that may go (one record a slot a ms)
 //   5 CAPTURE  42 B    a dump packet staged by diag_cap
@@ -89,7 +89,7 @@ module diag_log #(
     input  wire         dropped,
     input  wire         par_known,
     input  wire         par_sense,
-    input  wire [13:0]  dstate,
+    input  wire [18:0]  dstate,
     // amp_out: the command bus as it registered it, and what it did
     input  wire         c_ok,
     input  wire [7:0]   c_cmd,
@@ -99,7 +99,7 @@ module diag_log #(
     input  wire [7:0]   commit_tag,
     input  wire         bank_sw,
     input  wire         estart,
-    input  wire [143:0] in_w,
+    input  wire [191:0] in_w,
     input  wire [47:0]  out_w,
     input  wire         overrun,
     // the UART
@@ -110,11 +110,11 @@ module diag_log #(
 );
     // shared between the blocks below (declared ahead)
     localparam NP = 7;
-    localparam [7:0] L0 = 8'd56, L1 = 8'd94, L2 = 8'd22, L3 = 8'd16, L4 = 8'd14, L5 = 8'd42, L6 = 8'd42;
+    localparam [7:0] L0 = 8'd56, L1 = 8'd99, L2 = 8'd26, L3 = 8'd16, L4 = 8'd14, L5 = 8'd42, L6 = 8'd42;
     reg  [NP-1:0] done;                     // pulse: producer k's record has been taken whole
     reg  [7:0]    wi /* synthesis syn_maxfan = 16 */;   // the byte the producers serve
     reg  [7:0]    wi_d /* synthesis syn_maxfan = 16 */; // wi a clock later: the byte within the lane
-    // wi again, for STATUS's 12-lane pick alone (wi -> ln1 was the slowest path in builds where wi's
+    // wi again, for STATUS's 13-lane pick alone (wi -> ln1 was the slowest path in builds where wi's
     // fanout to the seven producers pulled it away; 2026-10-04): kept apart, it sits by that pick
     reg  [7:0]    wi1 /* synthesis syn_preserve = 1 */;
     reg           st_load;                  // pulse: a STATUS was taken (the tb's alignment)
@@ -142,7 +142,7 @@ module diag_log #(
     reg [15:0]  ui_t, b_t;
     reg [11:0]  psig_t, csig_t;
     reg [31:0]  per_t, err_t;
-    reg [13:0]  ds_t;
+    reg [18:0]  ds_t;
     reg [55:0]  cp_t /* synthesis syn_preserve = 1 */;
     always @(posedge clk) begin
         rv_t <= rv & ~rst; rlen_t <= rlen; rl_t <= rl; gl_t <= gl;
@@ -287,7 +287,8 @@ module diag_log #(
     // a stream's input is non-zero this frame (at the engine's start; in_w holds still then)
     reg        nz_q;
     always @(posedge clk)
-        nz_q <= (pos_s == 2'd0) ? |in_w[143:96] : (pos_s == 2'd1) ? |in_w[95:48] : |in_w[47:0];
+        nz_q <= (pos_s == 2'd0) ? |in_w[191:144] : (pos_s == 2'd1) ? |in_w[143:96] :
+                (pos_s == 2'd2) ? |in_w[95:48] : |in_w[47:0];
     reg        es_d;
     always @(posedge clk) es_d <= es_t;
     always @(posedge clk) begin
@@ -464,15 +465,15 @@ module diag_log #(
     reg  [63:0]  seen;                      // the byte was written since power-up: only then is prevb its
                                             // last value (on the chip prevb starts at 0, in a simulation X)
     reg  [3:0]   pk_n;                      // channels still to take this frame
-    reg  [2:0]   pk_i, pk_i1, pk_i2;        // the channel at each step
+    reg  [3:0]   pk_i, pk_i1, pk_i2;        // the channel at each step
     reg          pk_v1, pk_v2;
     reg  [23:0]  pk_ch;                     // step 1: the channel's sample
     reg  [15:0]  pk_a;                      // step 2: |sample| >> 8
-    reg  [15:0]  pkr [0:7];                 // peaks: s0 L R, s1 L R, s2 L R, out L R
+    reg  [15:0]  pkr [0:9];                 // peaks: s0 L R, s1 L R, s2 L R, out L R, s3 L R (s3 added last)
     reg          st_pend, r1;
     reg  [175:0] sn_cnt;
     reg  [15:0]  sn_st, sn_ui, sn_b, sn_dark, sn_cold;
-    reg  [13:0]  sn_ds;
+    reg  [18:0]  sn_ds;
     reg  [11:0]  sn_cs;
     reg  [31:0]  sn_now, sn_per;
     wire signed [31:0] e_s = err_t;
@@ -481,9 +482,9 @@ module diag_log #(
     wire [23:0] pk_abs = pk_ch[23] ? (24'd0 - pk_ch) : pk_ch;
     // pk_a against every channel's peak at once: picking pkr[pk_i2] first and comparing after was
     // a slowest path (2026-10-04); the channel now only selects which compare is written
-    reg  [7:0]   pk_gt;
+    reg  [9:0]   pk_gt;
     integer      ipk;
-    always @* for (ipk = 0; ipk < 8; ipk = ipk + 1) pk_gt[ipk] = pk_a > pkr[ipk];
+    always @* for (ipk = 0; ipk < 10; ipk = ipk + 1) pk_gt[ipk] = pk_a > pkr[ipk];
     wire        pk_busy = pk_n != 4'd0 || pk_v1 || pk_v2;
     always @(posedge clk) st_freeze <= r1;
     always @(posedge clk) begin
@@ -498,17 +499,17 @@ module diag_log #(
         if (rst) begin
             for (i1 = 0; i1 < 4; i1 = i1 + 1) begin cmin[i1] <= 8'hFF; cmax[i1] <= 8'd0; end
             emin <= 16'h7FFF; emax <= 16'h8000; odd_sig <= 12'd0; chmask <= 64'd0; pk_n <= 4'd0; seen <= 64'd0;
-            pk_i <= 3'd0; pk_i1 <= 3'd0; pk_i2 <= 3'd0; pk_v1 <= 1'b0; pk_v2 <= 1'b0; pk_ch <= 24'd0; pk_a <= 16'd0;
-            for (i1 = 0; i1 < 8; i1 = i1 + 1) pkr[i1] <= 16'd0;
+            pk_i <= 4'd0; pk_i1 <= 4'd0; pk_i2 <= 4'd0; pk_v1 <= 1'b0; pk_v2 <= 1'b0; pk_ch <= 24'd0; pk_a <= 16'd0;
+            for (i1 = 0; i1 < 10; i1 = i1 + 1) pkr[i1] <= 16'd0;
             st_pend <= 1'b0; r1 <= 1'b0; sn_cnt <= 176'd0; sn_st <= 16'd0; sn_ui <= 16'd0;
-            sn_dark <= 16'd0; sn_cold <= 16'd0; sn_ds <= 14'd0; sn_cs <= 12'd0;
+            sn_dark <= 16'd0; sn_cold <= 16'd0; sn_ds <= 19'd0; sn_cs <= 12'd0;
             sn_b <= 16'd0; sn_now <= 32'd0; sn_per <= 32'd0;
         end else begin
             if (done[1]) begin
                 r1 <= 1'b0;
                 for (i1 = 0; i1 < 4; i1 = i1 + 1) begin cmin[i1] <= 8'hFF; cmax[i1] <= 8'd0; end
                 emin <= e16; emax <= e16; chmask <= 64'd0;
-                for (i1 = 0; i1 < 8; i1 = i1 + 1) pkr[i1] <= 16'd0;
+                for (i1 = 0; i1 < 10; i1 = i1 + 1) pkr[i1] <= 16'd0;
             end else if (!st_freeze) begin
                 if (sv_t && (sym_t == 2'd1 || sym_t == 2'd2)) begin
                     if (sraw_t < cmin[cidx]) cmin[cidx] <= sraw_t;
@@ -522,18 +523,19 @@ module diag_log #(
             // three steps a channel: the sample, its magnitude, the compare
             pk_v1 <= pk_n != 4'd0; pk_v2 <= pk_v1; pk_i1 <= pk_i; pk_i2 <= pk_i1;
             if (es_t && !pk_busy && !r1) begin
-                pk_n <= 4'd8; pk_i <= 3'd0;
+                pk_n <= 4'd10; pk_i <= 4'd0;
             end else if (pk_n != 4'd0) begin
-                pk_n <= pk_n - 4'd1; pk_i <= pk_i + 3'd1;
+                pk_n <= pk_n - 4'd1; pk_i <= pk_i + 4'd1;
             end
             case (pk_i)
-                3'd0: pk_ch <= in_w[143:120]; 3'd1: pk_ch <= in_w[119:96];
-                3'd2: pk_ch <= in_w[95:72];   3'd3: pk_ch <= in_w[71:48];
-                3'd4: pk_ch <= in_w[47:24];   3'd5: pk_ch <= in_w[23:0];
-                3'd6: pk_ch <= out_w[47:24];  default: pk_ch <= out_w[23:0];
+                4'd0: pk_ch <= in_w[191:168]; 4'd1: pk_ch <= in_w[167:144];
+                4'd2: pk_ch <= in_w[143:120]; 4'd3: pk_ch <= in_w[119:96];
+                4'd4: pk_ch <= in_w[95:72];   4'd5: pk_ch <= in_w[71:48];
+                4'd6: pk_ch <= out_w[47:24];  4'd7: pk_ch <= out_w[23:0];
+                4'd8: pk_ch <= in_w[47:24];   default: pk_ch <= in_w[23:0];
             endcase
             pk_a <= pk_abs[23:8];
-            for (i1 = 0; i1 < 8; i1 = i1 + 1)
+            for (i1 = 0; i1 < 10; i1 = i1 + 1)
                 if (pk_v2 && pk_i2 == i1 && pk_gt[i1]) pkr[i1] <= pk_a;
             if (st_tick) st_pend <= 1'b1;
             if (st_pend && !pk_busy && !(es_t && !r1)) begin
@@ -552,7 +554,8 @@ module diag_log #(
         end
     end
     // the record, a byte at a time (LOGGING.md, STATUS)
-    wire [767:0] rec1 = {24'd0, sn_cold, sn_dark, {2'b00, sn_ds}, chmask,
+    wire [831:0] rec1 = {48'd0, {3'b000, sn_ds[18:14]}, pkr[9], pkr[8],
+                         sn_cold, sn_dark, {2'b00, sn_ds[13:0]}, chmask,
                          pkr[7], pkr[6], pkr[5], pkr[4], pkr[3], pkr[2], pkr[1], pkr[0],
                          emax, emin, sn_per, {4'd0, odd_sig}, {4'd0, sn_cs}, maxgap,
                          cmax[3], cmin[3], cmax[2], cmin[2], cmax[1], cmin[1], cmax[0], cmin[0],
@@ -572,7 +575,7 @@ module diag_log #(
     wire [7:0]  wf   = cp_t[15:8];
     wire [7:0]  wt   = cp_t[7:0];
     reg  [5:0]  s_next; reg [2:0] s_m5; reg [7:0] s_tag; reg s_ord, s_cst, s_skip; reg [31:0] s_ts, s_l;
-    reg  [31:0] g0, g1, g2;
+    reg  [31:0] g0, g1, g2, g3;
     reg  [2:0]  s_fl;
     reg         r2;
     wire [31:0] w_exp = (s_m5 == 3'd0) ? W_ONE : 32'd0;
@@ -580,7 +583,7 @@ module diag_log #(
         lost2 <= 1'b0;
         if (rst) begin
             s_next <= 6'd0; s_m5 <= 3'd0; s_tag <= 8'd0; s_ord <= 1'b0; s_cst <= 1'b0; s_skip <= 1'b1; s_ts <= 32'd0;
-            s_l <= 32'd0; g0 <= 32'd0; g1 <= 32'd0; g2 <= 32'd0; s_fl <= 3'd0; r2 <= 1'b0;
+            s_l <= 32'd0; g0 <= 32'd0; g1 <= 32'd0; g2 <= 32'd0; g3 <= 32'd0; s_fl <= 3'd0; r2 <= 1'b0;
         end else begin
             if (done[2]) r2 <= 1'b0;
             if (w03) begin
@@ -596,7 +599,7 @@ module diag_log #(
                     s_m5 <= (s_m5 == 3'd4) ? 3'd0 : s_m5 + 3'd1;
                     if (wa != s_next || wt != s_tag) s_ord <= 1'b0;
                     if (wa < 6'd40 && (wv != w_exp || wf != 8'd0)) s_cst <= 1'b0;
-                    if (wa >= 6'd40 && wa <= 6'd45) begin
+                    if (wa >= 6'd40 && wa <= 6'd47) begin
                         if (!wa[0]) s_l <= wv;
                         else if (wv != s_l) s_cst <= 1'b0;
                         if (wf != 8'd0) s_cst <= 1'b0;
@@ -604,7 +607,8 @@ module diag_log #(
                     if (wa == 6'd40) g0 <= wv;
                     if (wa == 6'd42) g1 <= wv;
                     if (wa == 6'd44) g2 <= wv;
-                    if (wa == 6'd46) begin
+                    if (wa == 6'd46) g3 <= wv;
+                    if (wa == 6'd48) begin
                         s_skip <= 1'b1;
                         r2 <= 1'b1;
                         s_fl <= {s_cst && wv == W_1MK && wf == 8'h01, s_ord && wa == s_next && wt == s_tag, wf[0]};
@@ -613,7 +617,7 @@ module diag_log #(
             end
         end
     end
-    wire [191:0] rec2 = {24'd0, g2, g1, g0, {5'd0, s_fl}, s_tag, s_ts, 8'h00, 8'h53, 8'hA5};
+    wire [255:0] rec2 = {56'd0, g3, g2, g1, g0, {5'd0, s_fl}, s_tag, s_ts, 8'h00, 8'h53, 8'hA5};
     reg  [63:0] ln2;
     always @(posedge clk) begin
         ln2 <= rec2[64 * wi[4:3] +: 64];

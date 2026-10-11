@@ -25,7 +25,7 @@
 // Messages, by FBlock, FktID and OPType. The InstID is not checked at all (audit R07: a request
 // may name instance 0 or 0xFF and the answer the real one), and the addresses only pair a
 // request with its answer: a request's device is its target, an answer's its source.
-//   0x22 0x111 Connect      StartResult(Ack) [SinkNr, SrcDelay, ch...]  sink 1..3 -> stream 0..2;
+//   0x22 0x111 Connect      StartResult(Ack) [SinkNr, SrcDelay, ch...]  sink 1..4 -> stream 0..3;
 //                           the position takes effect at once and is unconfirmed until the
 //                           device's Result [SinkNr]; its Error turns every unconfirmed Connect
 //                           to that device off (audit R08); a Result with no Connect on, or
@@ -37,24 +37,30 @@
 //   0x22 0x113 Mute         Set/SetGet/Status [SinkNr, Status]          sink 0 = all, kept for every stream,
 //                                                                      connected or not (audit R04); bit 0 = mute
 //   0x22 0x46D SpeakerLevel Set/SetGet/Status [param, SinkNr, dB...]    the loudest speaker, signed dB
-//   0xF0 0x409 (JLR)        Status                                     byte 2 audio, byte 8 nav/phone, raw
+//   0xF0 0x409 (JLR)        Status                                     byte 2 audio, byte 8 nav/phone, byte 10
+//                                                                      parking sensors, raw
+// The sinks, JLR's as mObridge's MOST25 DA guide (pp. 18-19) gives them for Jaguar and Land Rover:
+// 1 the main source, 2 phone, navigation and voice, 3 the parking sensors, 4 the chimes.
 // Formats (audit R09): from SinkInfo the full tuple, PCM only, 2 or 3 bytes a sample, 1 or 2
 // channels, the list exactly Resolution x AudioChannels long. A Connect carries the list alone;
 // 4 channels are taken as 16-bit stereo and 2 as 16-bit mono - the formats JLR is on record
 // with (STX 5.4.1.1: L-Hi, L-Lo, R-Hi, R-Lo) - and a list of 3 or 6, which could be 24-bit
 // stereo or three 16-bit channels, is refused until a SinkInfo names the format. Channels are
 // 0..59, ascending; frame byte = channel + 1 (Data Byte k is frame byte k+1).
-// A stream's gain, as the host chose it: muted -> 0; its own SpeakerLevel (dB); else, streams 1
-// and 2, 0x409 byte 8; else the volume: SpeakerLevel to sink 1, else 0x409 byte 2; else the
-// stream's start-up level (GAIN_DEF_*: the user's decision, a third of full volume or less for
-// the main source, their own figures for the announcement streams), which is also what the
-// first coefficient set after reset carries, so a Connect is heard before any level message.
+// A stream's gain, as the host chose it, with stream 2 and 3 added: muted -> 0; its own
+// SpeakerLevel (dB); else the 0x409 level of its kind - stream 2 (parking sensors) byte 10, then
+// byte 8, stream 1 byte 8; else the volume: SpeakerLevel to sink 1, else 0x409 byte 2 (not for
+// stream 3, the chimes: no volume message is on record for them, and a chime must not vanish
+// with the volume turned down); else the stream's start-up level (GAIN_DEF_*: the user's
+// decision, a third of full volume or less for the main source, their own figures for the
+// others), which is also what the first coefficient set after reset carries, so a Connect is
+// heard before any level message.
 // The dB -> word and raw -> word tables are gain_rom.vh, written by sim/gain_tables.py, which
 // is also their model. Positions survive a lost lock (audit R06: a gap must not silence the one
 // output); a ring restart takes the FPGA's supply with it and so clears everything.
 //
 // Every change of a stream's position sends command 01 for it; every accepted level or mute
-// message rewrites the whole coefficient set as the host did: 47 words, straight biquads,
+// message rewrites the whole coefficient set as the host did: 49 words, straight biquads,
 // k x gain per stream and output, 1 - k, the commit with the last, all carrying the set's tag
 // (amp_out switches banks only on a whole set of one tag: audit R03). Commands leave one a
 // clock, about 60 clocks for a set - long before the next block can complete, 16 frames later.
@@ -90,8 +96,9 @@ module ctrl_decode #(
     output wire        par_known_o,         // the ring's parity sense is known and checked
     output wire        par_sense_o,         // ...and what it is (the log)
     output wire        busy,                // commands pending or going out
-    output wire [13:0] dstate               // the log: per stream s at 4s: on, confirmed, muted, own level;
-                                            // 12 0x409 audio level heard, 13 0x409 nav level heard
+    output wire [18:0] dstate               // the log: per stream s at 4s (s 0..2), 14 (s 3): on, confirmed,
+                                            // muted, own level; 12 0x409 audio level heard, 13 0x409 nav
+                                            // level heard, 18 0x409 parking level heard
 );
 `include "gain_rom.vh"
     integer k;
@@ -186,13 +193,13 @@ module ctrl_decode #(
     end
 
     // ---------------------------------------------------------- state
-    reg        pos_on [0:2], pos_w3 [0:2], pos_mono [0:2], pos_pend [0:2], confirmed [0:2];
-    reg [15:0] pos_dev [0:2];               // the device the position came from
-    reg [7:0]  pos_b [0:17];                // stream s: L0 L1 L2 R0 R1 R2 at 6s .. 6s+5, frame bytes
-    reg        muted [0:2], have_db [0:2];
-    reg [7:0]  lvl_db [0:2];
-    reg        have_a, have_n, coef_pend;
-    reg [7:0]  raw_a, raw_n;
+    reg        pos_on [0:3], pos_w3 [0:3], pos_mono [0:3], pos_pend [0:3], confirmed [0:3];
+    reg [15:0] pos_dev [0:3];               // the device the position came from
+    reg [7:0]  pos_b [0:23];                // stream s: L0 L1 L2 R0 R1 R2 at 6s .. 6s+5, frame bytes
+    reg        muted [0:3], have_db [0:3];
+    reg [7:0]  lvl_db [0:3];
+    reg        have_a, have_n, have_p, coef_pend;
+    reg [7:0]  raw_a, raw_n, raw_p;
     reg [7:0]  tag;                         // the coefficient set's tag, one more per set
 
     // E3..E5: the match, the format check and the table write were one clock, 16 ns where the
@@ -212,9 +219,9 @@ module ctrl_decode #(
     wire        op_res  = op == 4'hC || op == 4'hD;                      // Result, ResultAck
     wire        op_err  = op == 4'hF || op == 4'h9;                      // Error, ErrorAck
     wire [7:0]  sink    = pd[0];
-    wire        sink13  = sink >= 8'd1 && sink <= 8'd3;
+    wire        sink14  = sink >= 8'd1 && sink <= 8'd4;
     wire [7:0]  lsink   = pd[1];                                         // SpeakerLevel's sink
-    wire        lsink13 = lsink >= 8'd1 && lsink <= 8'd3;
+    wire        lsink14 = lsink >= 8'd1 && lsink <= 8'd4;
     // the channel list: after SinkNr, SrcDelay in a Connect (pd[2..]); after SinkNr, DataType,
     // Resolution, AudioChannels, SinkDelay in a SinkInfo (pd[5..])
     wire [3:0]  nch     = plen - 4'd2;
@@ -234,11 +241,11 @@ module ctrl_decode #(
     endfunction
     reg        e3;
     reg        c_conn, c_res, c_err, c_sinfo, c_disc, c_mute, c_spk, c_409;
-    reg [2:0]  sel, lsel, msel;             // one-hot: the sink's stream, SpeakerLevel's, Mute's
+    reg [3:0]  sel, lsel, msel;             // one-hot: the sink's stream, SpeakerLevel's, Mute's
     reg [10:2] hi, nup;                     // pd[j] > 59; pd[j] <= pd[j-1]
     reg [5:0]  in_c, in_s;                  // list entry k is there: k < nch, k < nls
     reg        s_pcm, s_res, s_w3, s_chn, s_mono;
-    reg [2:0]  dsrc, dtgt;                  // pos_dev[k] == src, == tgt
+    reg [3:0]  dsrc, dtgt;                  // pos_dev[k] == src, == tgt
     reg [7:0]  m01, m23, m45, m67, m89;
     reg [7:0]  pdp [2:10];                  // pd[j] + 1, a clock ahead of the position's pick: the add
                                             // after the c_sinfo pick was a slowest path (2026-10-04);
@@ -247,17 +254,17 @@ module ctrl_decode #(
         e3 <= e2 && !rst;
         if (e2) begin
             // the messages, all but the format of a Connect or a SinkInfo (E4)
-            c_conn  <= valid && is_amp && fkt == 12'h111 && op_sr  && plen >= 4'd4 && sink13;
-            c_res   <= valid && is_amp && fkt == 12'h111 && op_res && plen >= 4'd1 && sink13;
+            c_conn  <= valid && is_amp && fkt == 12'h111 && op_sr  && plen >= 4'd4 && sink14;
+            c_res   <= valid && is_amp && fkt == 12'h111 && op_res && plen >= 4'd1 && sink14;
             c_err   <= valid && is_amp && fkt == 12'h111 && op_err;
-            c_sinfo <= valid && is_amp && fkt == 12'h110 && op == 4'hC && plen >= 4'd5 && sink13;
-            c_disc  <= valid && is_amp && fkt == 12'h112 && op_sr  && plen >= 4'd1 && sink13;
-            c_mute  <= valid && is_amp && fkt == 12'h113 && op_sgs && plen >= 4'd2 && sink <= 8'd3;
-            c_spk   <= valid && is_amp && fkt == 12'h46D && op_sgs && plen >= 4'd3 && lsink13;
+            c_sinfo <= valid && is_amp && fkt == 12'h110 && op == 4'hC && plen >= 4'd5 && sink14;
+            c_disc  <= valid && is_amp && fkt == 12'h112 && op_sr  && plen >= 4'd1 && sink14;
+            c_mute  <= valid && is_amp && fkt == 12'h113 && op_sgs && plen >= 4'd2 && sink <= 8'd4;
+            c_spk   <= valid && is_amp && fkt == 12'h46D && op_sgs && plen >= 4'd3 && lsink14;
             c_409   <= valid && is_jlr && fkt == 12'h409 && op == 4'hC && plen >= 4'd3;
-            for (k = 0; k < 3; k = k + 1) begin
-                sel[k]  <= (sink[1:0] == k + 1);                         // sink 1..3 -> stream 0..2 (every use has sink13)
-                lsel[k] <= (lsink[1:0] == k + 1);                        // SpeakerLevel's (every use has lsink13)
+            for (k = 0; k < 4; k = k + 1) begin
+                sel[k]  <= (sink[2:0] == k + 1);                         // sink 1..4 -> stream 0..3 (every use has sink14)
+                lsel[k] <= (lsink[2:0] == k + 1);                        // SpeakerLevel's (every use has lsink14)
                 msel[k] <= (sink == 8'd0 || sink == k + 1);              // Mute's: sink 0 is all
                 dsrc[k] <= (pos_dev[k] == src);                          // an answer's device is its source,
                 dtgt[k] <= (pos_dev[k] == tgt);                          // a request's its target
@@ -346,13 +353,13 @@ module ctrl_decode #(
 
     // ---------------------------------------------------------- E5: what it does to each stream
     reg         e5;
-    reg  [2:0]  set_s, off_s, cnf_s, mute_s, lvl_s;
-    reg         coef_s, a409_s, n409_s;
+    reg  [3:0]  set_s, off_s, cnf_s, mute_s, lvl_s;
+    reg         coef_s, a409_s, n409_s, p409_s;
     reg  [7:0]  m07, m89_5;
     always @(posedge clk) begin
         e5 <= e4 && !rst;
         if (e4) begin
-            for (k = 0; k < 3; k = k + 1) begin
+            for (k = 0; k < 4; k = k + 1) begin
                 set_s[k]  <= (m_conn || m_sok) && sel[k];
                 off_s[k]  <= (m_sbad && sel[k] && (!pos_on[k] || dsrc[k])) ||        // nothing known any more
                              (m_disc && sel[k] && (!pos_on[k] || dtgt[k])) ||        // DisConnect from its device
@@ -364,6 +371,7 @@ module ctrl_decode #(
             coef_s <= m_mute || m_spk || m_409;
             a409_s <= m_409;
             n409_s <= m_409 && plen >= 4'd9;
+            p409_s <= m_409 && plen >= 4'd11;
             m07    <= smax(m03, m47);
             m89_5  <= m89_4;
         end
@@ -372,28 +380,33 @@ module ctrl_decode #(
 
     // the gain of stream gs (see the header), one lookup in each table
     reg  [1:0]  gs;
-    wire        n_first = gs != 2'd0 && have_n;                          // streams 1, 2: 0x409 byte 8 before the volume
-    wire        use_db  = have_db[gs] || (!n_first && have_db[0]);
-    wire [7:0]  db_sel  = have_db[gs] ? lvl_db[gs] : lvl_db[0];
-    wire        use_raw = n_first || have_a;
-    wire [7:0]  raw_sel = n_first ? raw_n : raw_a;
-    wire [31:0] g_def   = gs == 2'd0 ? GAIN_DEF_MAIN : gs == 2'd1 ? GAIN_DEF_S1 : GAIN_DEF_S2;
+    wire        own     = have_db[gs];
+    wire        p_first = gs == 2'd2 && have_p;                          // stream 2: 0x409 byte 10 first,
+    wire        n_first = (gs == 2'd1 || gs == 2'd2) && have_n;          // streams 1, 2: byte 8, before the volume
+    wire        ann     = p_first || n_first;
+    wire        vol_ok  = gs != 2'd3;                                    // the chimes never take the volume
+    wire        use_db  = own || (!ann && vol_ok && have_db[0]);
+    wire [7:0]  db_sel  = own ? lvl_db[gs] : lvl_db[0];
+    wire        use_raw = ann || (vol_ok && have_a);
+    wire [7:0]  raw_sel = p_first ? raw_p : n_first ? raw_n : raw_a;
+    wire [31:0] g_def   = gs == 2'd0 ? GAIN_DEF_MAIN : gs == 2'd1 ? GAIN_DEF_S1 : gs == 2'd2 ? GAIN_DEF_S2 : GAIN_DEF_S3;
     wire [31:0] g_now   = muted[gs] ? 32'd0 : use_db ? gain_db_word(db_sel) : use_raw ? gain_raw_word(raw_sel) : g_def;
     // the next stream whose position goes out
-    wire [1:0]  ps = pos_pend[0] ? 2'd0 : pos_pend[1] ? 2'd1 : 2'd2;
+    wire [1:0]  ps = pos_pend[0] ? 2'd0 : pos_pend[1] ? 2'd1 : pos_pend[2] ? 2'd2 : 2'd3;
     wire [1:0]  pw = !pos_on[ps] ? 2'd0 : pos_w3[ps] ? 2'd3 : 2'd2;      // P[1:0]: off, 16 bit, 24 bit
-    wire        any_pend = pos_pend[0] || pos_pend[1] || pos_pend[2];
+    wire        any_pend = pos_pend[0] || pos_pend[1] || pos_pend[2] || pos_pend[3];
 
     // ---------------------------------------------------------- the sequencer, one command a clock
     localparam [2:0] S_IDLE = 3'd0, S_BQ = 3'd1, S_GL = 3'd2, S_GEL = 3'd3, S_GER = 3'd4, S_K = 3'd5;
     localparam [31:0] W_ONE = 32'h1000_0000;                            // 1.0: a straight biquad's b0
     localparam [31:0] W_1MK = 32'h0FF0_0000;                            // 1 - 1/256 (gain_tables.py W_1MK)
     reg [2:0]  st;
-    reg [5:0]  idx;                         // coefficient address 0..46
+    reg [5:0]  idx;                         // coefficient address 0..48
     reg [2:0]  bq5;                         // word within a biquad
     reg [31:0] g_q;
-    assign busy = st != S_IDLE || pos_pend[0] || pos_pend[1] || pos_pend[2] || coef_pend;
-    assign dstate = {have_n, have_a,
+    assign busy = st != S_IDLE || any_pend || coef_pend;
+    assign dstate = {have_p, have_db[3], muted[3], confirmed[3], pos_on[3],
+                     have_n, have_a,
                      have_db[2], muted[2], confirmed[2], pos_on[2],
                      have_db[1], muted[1], confirmed[1], pos_on[1],
                      have_db[0], muted[0], confirmed[0], pos_on[0]};
@@ -419,13 +432,14 @@ module ctrl_decode #(
     always @(posedge clk) begin
         ok <= 1'b0; tel <= 1'b0; hit <= 1'b0;
         if (rst) begin
-            for (k = 0; k < 3; k = k + 1) begin
+            for (k = 0; k < 4; k = k + 1) begin
                 pos_on[k] <= 1'b0; pos_w3[k] <= 1'b0; pos_mono[k] <= 1'b0; pos_pend[k] <= 1'b0;
                 confirmed[k] <= 1'b0; pos_dev[k] <= 16'd0;
                 muted[k] <= 1'b0; have_db[k] <= 1'b0; lvl_db[k] <= 8'd0;
             end
-            for (k = 0; k < 18; k = k + 1) pos_b[k] <= 8'd0;
-            have_a <= 1'b0; have_n <= 1'b0; raw_a <= 8'd0; raw_n <= 8'd0; tag <= 8'd0;
+            for (k = 0; k < 24; k = k + 1) pos_b[k] <= 8'd0;
+            have_a <= 1'b0; have_n <= 1'b0; have_p <= 1'b0; raw_a <= 8'd0; raw_n <= 8'd0; raw_p <= 8'd0;
+            tag <= 8'd0;
             coef_pend <= 1'b1;              // the first set, with the start-up levels, goes out at once
             st <= S_IDLE; idx <= 6'd0; bq5 <= 3'd0; gs <= 2'd0; g_q <= 32'd0;
             cmd <= 8'd0; p <= 56'd0;
@@ -469,10 +483,10 @@ module ctrl_decode #(
                     cmd <= 8'h03;
                     p   <= {2'b00, idx, g_q, 8'd0, tag};
                     idx <= idx + 6'd1;
-                    if (gs == 2'd2) st <= S_K;
+                    if (gs == 2'd3) st <= S_K;
                     else begin gs <= gs + 2'd1; st <= S_GL; end
                 end
-                S_K: begin                  // word 46: 1 - k, and the commit
+                S_K: begin                  // word 48: 1 - k, and the commit
                     ok  <= 1'b1;
                     cmd <= 8'h03;
                     p   <= {2'b00, idx, W_1MK, 8'h01, tag};
@@ -486,7 +500,7 @@ module ctrl_decode #(
             if (e5) begin
                 tel <= valid;
                 hit <= hit_m;
-                for (k = 0; k < 3; k = k + 1) begin
+                for (k = 0; k < 4; k = k + 1) begin
                     if (set_s[k]) begin
                         pos_on[k]        <= 1'b1;
                         pos_w3[k]        <= w3_n;
@@ -515,6 +529,7 @@ module ctrl_decode #(
                 if (coef_s) coef_pend <= 1'b1;
                 if (a409_s) begin raw_a <= pd[2]; have_a <= 1'b1; end
                 if (n409_s) begin raw_n <= pd[8]; have_n <= 1'b1; end
+                if (p409_s) begin raw_p <= pd[10]; have_p <= 1'b1; end
             end
         end
     end

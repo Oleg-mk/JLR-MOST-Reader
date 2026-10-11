@@ -33,9 +33,9 @@ K_GLIDE = 1.0 / 256.0
 SILENT_DB = -120            # sound.c: a SpeakerLevel at or below this is silence
 RAW_MAX = 40                # sound.c snd_cfg_default vol_max[SND_VOL_F0]: PLACEHOLDER
 N_BQ = 8                    # dsp_asm.py: biquads on stream 0, 5 words each
-N_STREAMS = 3
+N_STREAMS = 4
 N_OUT = 2
-C_IMAGE = 5 * N_BQ + N_STREAMS * N_OUT + 1       # 47 words the host sent: 0 .. C_1MK
+C_IMAGE = 5 * N_BQ + N_STREAMS * N_OUT + 1       # 49 words a set: 0 .. C_1MK (the host's had 47, three streams)
 
 
 def q28(x: float) -> int:
@@ -79,14 +79,19 @@ assert db_word(SILENT_DB) == 0 and raw_word(0) == 0
 # The levels a stream plays at until the car has said anything about it (the user's decision of
 # 2026-10-03: a start-up level of about a third of full volume or less, the announcement
 # streams at levels of the user's own). Settings of the build: change them here.
+# The sinks are JLR's as mObridge's MOST25 DA guide (pp. 18-19) gives them for Jaguar and Land
+# Rover: sink 2 phone, navigation and voice, sink 3 the parking sensors, sink 4 the chimes.
 DEFAULT_MAIN_DB = -12       # stream 0, the main source: a quarter of full amplitude
-DEFAULT_S1_DB = -6          # stream 1 (sink 2: navigation, phone)
-DEFAULT_S2_DB = -6          # stream 2 (sink 3: chimes, parking sensors)
-DEFAULT_DB = (DEFAULT_MAIN_DB, DEFAULT_S1_DB, DEFAULT_S2_DB)
+DEFAULT_S1_DB = -6          # stream 1 (sink 2: phone, navigation, voice)
+DEFAULT_S2_DB = -6          # stream 2 (sink 3: parking sensors)
+DEFAULT_S3_DB = -6          # stream 3 (sink 4: chimes): also its level for good, unless a SpeakerLevel
+                            # names sink 4 - no volume message is on record for it, and a chime must
+                            # not vanish with the volume turned down
+DEFAULT_DB = (DEFAULT_MAIN_DB, DEFAULT_S1_DB, DEFAULT_S2_DB, DEFAULT_S3_DB)
 
 
 def default_word(stream: int) -> int:
-    """The gain word stream 0..2 starts with."""
+    """The gain word stream 0..3 starts with."""
     return db_word(DEFAULT_DB[stream])
 
 
@@ -100,6 +105,7 @@ def rom_text() -> str:
         f"localparam [31:0] GAIN_DEF_MAIN = 32'h{default_word(0):08X};   // {DEFAULT_MAIN_DB:+d} dB",
         f"localparam [31:0] GAIN_DEF_S1   = 32'h{default_word(1):08X};   // {DEFAULT_S1_DB:+d} dB",
         f"localparam [31:0] GAIN_DEF_S2   = 32'h{default_word(2):08X};   // {DEFAULT_S2_DB:+d} dB",
+        f"localparam [31:0] GAIN_DEF_S3   = 32'h{default_word(3):08X};   // {DEFAULT_S3_DB:+d} dB",
         "function [31:0] gain_db_word;",
         "    input [7:0] db;",
         "    begin",

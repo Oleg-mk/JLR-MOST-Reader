@@ -2,7 +2,7 @@
 // everything on the way logged for run_e2e.py and run_log.py.
 //   out_frames.txt   F n lk bk bi par hex     every frame the receiver completed (n = frames so far)
 //   out_cmds.txt     n cmd p                   every command ctrl_decode sent, n = frames done then
-//   out_engine.txt   P n pos x18 wid x3 mon x3  a frame collected by amp_out: with these positions
+//   out_engine.txt   P n pos x24 wid x4 mon x4  a frame collected by amp_out: with these positions
 //                    S n lastframe in_w         the engine started on this frame's samples
 //                    E n out_w bank             the program ended: outputs and the bank it used
 //                    W n bank addr value commit inuse tag   a coefficient word amp_out accepted
@@ -84,9 +84,9 @@ module tb_core;
     always @(posedge clk) begin
         if (u.u_amp.fd_q) begin
             $fwrite(fe, "P %0d", nf_amp);
-            for (j = 0; j < 18; j = j + 1) $fwrite(fe, " %0d", u.u_amp.pos[j]);
-            for (j = 0; j < 3; j = j + 1) $fwrite(fe, " %0d", u.u_amp.wid[j]);
-            for (j = 0; j < 3; j = j + 1) $fwrite(fe, " %0d", u.u_amp.mon[j]);
+            for (j = 0; j < 24; j = j + 1) $fwrite(fe, " %0d", u.u_amp.pos[j]);
+            for (j = 0; j < 4; j = j + 1) $fwrite(fe, " %0d", u.u_amp.wid[j]);
+            for (j = 0; j < 4; j = j + 1) $fwrite(fe, " %0d", u.u_amp.mon[j]);
             $fwrite(fe, "\n");
             nf_amp = nf_amp + 1;
         end
@@ -96,7 +96,7 @@ module tb_core;
         if (u.u_amp.bank_r !== bank_d) $fwrite(fe, "K %0d %0d\n", nstart, u.u_amp.bank_r);
         if (u.u_amp.start) begin
             nstart = nstart + 1;
-            $fwrite(fe, "S %0d %0d %036h\n", nstart, nf_amp - 1, u.u_amp.in_w);
+            $fwrite(fe, "S %0d %0d %048h\n", nstart, nf_amp - 1, u.u_amp.in_w);
         end
         if (run_d && !u.u_amp.running) begin
             nend = nend + 1;
@@ -163,7 +163,7 @@ module tb_core;
         if (u.u_log.done[1]) $fwrite(ft, "D %0d\n", cyc);
         if (u.commit_ok || u.commit_bad || u.bank_sw)
             $fwrite(ft, "A %0d %0d %0d %0d %0d\n", cyc, u.commit_ok, u.commit_bad, u.commit_tag, u.bank_sw);
-        if (u.estart) $fwrite(ft, "I %0d %036h %012h\n", cyc, u.in_w, u.out_w);
+        if (u.estart) $fwrite(ft, "I %0d %048h %012h\n", cyc, u.in_w, u.out_w);
     end
 `endif
 

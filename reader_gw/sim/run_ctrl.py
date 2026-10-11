@@ -89,6 +89,16 @@ def scenario_basic():
         tel(jlr.speaker_level([0, 0, 0, 0, 0, 0, 0])),
         tel(jlr.speaker_level([18, -3])),                                  # +18 dB: the loudest counts
         tel(jlr.gateway_levels(0, 0, 0)),                                  # raw 0 for nav/phone: silence there
+        tel(jlr.connect([24, 25], sink=3)),                                # parking sensors, mono 16 bit, stream 2
+        tel(jlr.connect([26, 27], sink=4)),                                # chimes, mono 16 bit, stream 3
+        tel(jlr.connect_result(sink=4)),                                   # confirms sink 4
+        tel(jlr.gateway_levels(30, 20, 12)),                               # byte 10 for the parking sensors
+        tel(jlr.speaker_level([-9, -12], sink=4)),                         # the chimes' own level
+        tel(jlr.mute(True, sink=4)),
+        tel(jlr.mute(False, sink=0)),                                      # all four on again
+        tel(Telegram(SCR, G, 0xF0, 1, 0x409, 0xC, bytes([0, 0, 22, 0, 0, 0, 0, 0, 19]))),  # 9 bytes: no byte 10
+        tel(jlr.disconnect(sink=4)),
+        tel(sinkinfo(4, 2, 1, [44, 45])),                                  # the device's word on sink 4
         IDLE,
     ]
 
@@ -102,7 +112,7 @@ def scenario_refusals():
         tel(Telegram(A, G, 0x22, 5, 0x111, 0x2, bytes([1, 0, 8, 9, 10]))),               # 3 channels: ambiguous
         tel(Telegram(A, G, 0x22, 5, 0x111, 0x2, bytes([1, 0, 57, 58, 59, 60]))),         # channel 60
         tel(Telegram(A, G, 0x22, 5, 0x111, 0x2, bytes([1, 0, 8, 10, 9, 11]))),           # not ascending
-        tel(Telegram(A, G, 0x22, 5, 0x111, 0x2, bytes([4, 0, 8, 9, 10, 11]))),           # sink 4
+        tel(Telegram(A, G, 0x22, 5, 0x111, 0x2, bytes([5, 0, 8, 9, 10, 11]))),           # sink 5
         tel(Telegram(A, G, 0x22, 5, 0x111, 0x2, bytes([0, 0, 8, 9, 10, 11]))),           # sink 0
         tel(Telegram(A, G, 0x22, 5, 0x111, 0x2, bytes([1, 0, 8]))),                      # 1 channel
         tel(Telegram(A, G, 0x22, 5, 0x111, 0x1, bytes([1, 0, 8, 9, 10, 11]))),           # Get
@@ -110,11 +120,11 @@ def scenario_refusals():
         tel(sinkinfo(1, 2, 2, [8, 9, 10, 11, 12])),                                      # list too long for 2 x 2
         tel(sinkinfo(1, 4, 1, [8, 9, 10, 11])),                                          # 32 bit: not taken
         tel(sinkinfo(1, 2, 2, [8, 9, 10, 11], op=0x1)),                                  # SinkInfo.Get
-        tel(sinkinfo(4, 2, 2, [8, 9, 10, 11])),                                          # sink 4
+        tel(sinkinfo(5, 2, 2, [8, 9, 10, 11])),                                          # sink 5
         tel(Telegram(A, G, 0x22, 5, 0x113, 0x2, bytes([1]))),                            # Mute, 1 byte
-        tel(Telegram(A, G, 0x22, 5, 0x113, 0x2, bytes([4, 1]))),                         # Mute sink 4
+        tel(Telegram(A, G, 0x22, 5, 0x113, 0x2, bytes([5, 1]))),                         # Mute sink 5
         tel(Telegram(A, G, 0x22, 5, 0x46D, 0x0, bytes([0, 0, 0xEC]))),                   # SpeakerLevel sink 0
-        tel(Telegram(A, G, 0x22, 5, 0x46D, 0x0, bytes([0, 4, 0xEC]))),                   # sink 4
+        tel(Telegram(A, G, 0x22, 5, 0x46D, 0x0, bytes([0, 5, 0xEC]))),                   # sink 5
         tel(Telegram(A, G, 0x22, 5, 0x46D, 0x0, bytes([0, 1]))),                         # no level byte
         tel(Telegram(SCR, G, 0xF0, 1, 0x409, 0xC, bytes([0, 0]))),                       # 0x409 too short
         tel(Telegram(SCR, G, 0xF0, 1, 0x409, 0x0, bytes(11))),                           # 0x409 Set
@@ -230,11 +240,11 @@ def random_block(rnd: random.Random):
     inst = rnd.choice([5, 5, 0xA1, 1, 0, 0xFF])
     if fkt in (0x111, 0x101):
         if op in (0xC, 0xD):
-            data = bytes([rnd.choice([1, 1, 2, 3, 0, 4])])
+            data = bytes([rnd.choice([1, 1, 2, 3, 4, 0, 5])])
         elif op in (0xF, 0x9):
             data = bytes([0x20, rnd.randrange(8)])
         else:
-            sink = rnd.choice([1, 1, 2, 3]) if clean else rnd.choice([1, 1, 1, 2, 3, 0, 4])
+            sink = rnd.choice([1, 1, 2, 3, 4]) if clean else rnd.choice([1, 1, 1, 2, 3, 4, 0, 5])
             nch = rnd.choice([4, 4, 2, 6, 3]) if clean else rnd.choice([4, 4, 4, 2, 3, 6, 1, 5, 7, 0])
             ch = sorted(rnd.sample(range(60), nch))
             if not clean and kind < 0.15 and nch:
@@ -244,7 +254,7 @@ def random_block(rnd: random.Random):
                 ch[i], ch[i + 1] = ch[i + 1], ch[i]
             data = bytes([sink, rnd.randrange(4)] + ch)
     elif fkt == 0x110:
-        sink = rnd.choice([1, 1, 2, 3]) if clean else rnd.choice([1, 1, 2, 3, 0, 4])
+        sink = rnd.choice([1, 1, 2, 3, 4]) if clean else rnd.choice([1, 1, 2, 3, 4, 0, 5])
         res = rnd.choice([2, 2, 3]) if clean else rnd.choice([2, 2, 3, 1, 4])
         chn = rnd.choice([2, 2, 1]) if clean else rnd.choice([2, 2, 1, 0, 3])
         dtype = 0 if clean or rnd.random() < 0.7 else rnd.choice([1, 2, 0xFF])
@@ -253,10 +263,10 @@ def random_block(rnd: random.Random):
         ch = sorted(rnd.sample(range(60), n)) if rnd.random() < 0.9 else [0xFF] * n
         data = bytes([sink, dtype, res, chn, rnd.randrange(4)] + ch)
     elif fkt == 0x112:
-        sink = rnd.choice([1, 1, 2, 3]) if clean else rnd.choice([1, 1, 2, 3, 0, 4])
+        sink = rnd.choice([1, 1, 2, 3, 4]) if clean else rnd.choice([1, 1, 2, 3, 4, 0, 5])
         data = bytes([sink]) if clean or rnd.random() < 0.9 else b""
     elif fkt == 0x113:
-        sink = rnd.choice([0, 1, 1, 2, 3]) if clean else rnd.choice([0, 1, 1, 2, 3, 4])
+        sink = rnd.choice([0, 1, 1, 2, 3, 4]) if clean else rnd.choice([0, 1, 1, 2, 3, 4, 5])
         data = bytes([sink, rnd.randrange(256)])
         if not clean:
             data = data[:rnd.choice([2, 2, 2, 1])]
@@ -264,7 +274,7 @@ def random_block(rnd: random.Random):
         n = rnd.choice([7, 7, 7, 1, 2, 10]) if clean else rnd.choice([7, 7, 1, 2, 0, 9, 10])
         levels = [rnd.choice([rnd.randrange(-128, 128), rnd.randrange(-60, 1), rnd.randrange(-130, -110)])
                   for _ in range(n)]
-        sink = rnd.choice([1, 1, 2, 3]) if clean else rnd.choice([1, 1, 2, 3, 0, 4])
+        sink = rnd.choice([1, 1, 2, 3, 4]) if clean else rnd.choice([1, 1, 2, 3, 4, 0, 5])
         data = bytes([rnd.randrange(256), sink] + [v & 0xFF for v in levels])
     elif fkt == 0x409:
         n = rnd.choice([11, 11, 11, 3, 9, 12]) if clean else rnd.choice([11, 11, 3, 9, 2, 0, 12])
@@ -290,6 +300,44 @@ def scenario_random(n: int, seed: int):
             if r.random() < 0.025:
                 frames[i] = flip(frames[i], r.randrange(1, 64), r.randrange(8))
     return blocks, mutate, None
+
+
+def check_gain_rules():
+    """The levels the header of ctrl_decode.v promises, asked of the model directly (the RTL is
+    then held to the model frame for frame): the parking sensors take 0x409 byte 10 before byte 8,
+    the chimes never take the volume, a stream's own SpeakerLevel wins."""
+    from gain_tables import db_word, default_word, raw_word
+    m = CtrlDecoder()
+    feed = lambda t: m.block(build_block(t))
+    fails = []
+
+    def want(s, w, why):
+        if m.gain_word(s) != w:
+            fails.append(f"stream {s}: {m.gain_word(s):#x}, wanted {w:#x} ({why})")
+    for s in range(4):
+        want(s, default_word(s), "start-up level")
+    feed(Telegram(SCR, G, 0xF0, 1, 0x409, 0xC, bytes([0, 0, 30])))     # the volume only
+    want(0, raw_word(30), "the volume")
+    want(1, raw_word(30), "no nav level yet: the volume")
+    want(2, raw_word(30), "no parking level yet: the volume")
+    want(3, default_word(3), "the chimes never take the volume")
+    feed(Telegram(SCR, G, 0xF0, 1, 0x409, 0xC, bytes([0, 0, 30, 0, 0, 0, 0, 0, 20])))   # nav, no byte 10
+    want(1, raw_word(20), "byte 8")
+    want(2, raw_word(20), "no byte 10: byte 8")
+    feed(jlr.gateway_levels(30, 20, 12))
+    want(2, raw_word(12), "byte 10")
+    want(1, raw_word(20), "byte 8 still")
+    feed(jlr.gateway_levels(0, 20, 12))
+    want(3, default_word(3), "the chimes with the volume at 0")
+    feed(jlr.speaker_level([-9, -12], sink=4))
+    want(3, db_word(-9), "its own SpeakerLevel")
+    feed(jlr.speaker_level([-20], sink=1))
+    want(0, db_word(-20), "SpeakerLevel to sink 1")
+    want(2, raw_word(12), "byte 10 before the volume")
+    feed(jlr.mute(True, sink=3))
+    want(2, 0, "muted")
+    want(3, db_word(-9), "the mute of sink 3 only")
+    return fails
 
 
 def write_stim(d: Path, blocks, mutate, seed: int, parity_even: bool = True):
@@ -343,6 +391,13 @@ def main():
     if (RTL / "gain_rom.vh").read_text(encoding="utf-8") != gain_tables.rom_text():
         print("FAIL  rtl/gain_rom.vh is stale: run gain_tables.py")
         return 1
+    rule_fails = check_gain_rules()
+    print(f"{'PASS' if not rule_fails else 'FAIL'}  gain rules: the parking sensors' byte 10, the chimes' own "
+          f"level, SpeakerLevel first")
+    for f in rule_fails:
+        print("        " + f)
+    if rule_fails:
+        return 1
     a.work.mkdir(parents=True, exist_ok=True)
     vvp = a.work / "tb_ctrl.vvp"
     subprocess.run(["iverilog", "-g2005", "-I", str(RTL), "-o", str(vvp), str(HERE / "tb_ctrl.v"),
@@ -374,7 +429,7 @@ def main():
         ok = not bad and dropped_ok and "busy_at_block_end=0" in stat and sim.returncode == 0
         fails += not ok
         print(f"{'PASS' if ok else 'FAIL'}  {name:10s} blocks={len(blocks)} expected: {n01} x cmd01, "
-              f"{n03} x cmd03 ({n03 // 47} sets), {model.dropped} blocks dropped; got {len(got)}; {stat}")
+              f"{n03} x cmd03 ({n03 // gain_tables.C_IMAGE} sets), {model.dropped} blocks dropped; got {len(got)}; {stat}")
         for i, e, g in bad[:8]:
             es = f"frame {e[0]} {fmt(e[1])}" if e else "-"
             gs = f"frame {g[0]} {fmt(g[1])}" if g else "-"

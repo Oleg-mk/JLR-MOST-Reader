@@ -47,9 +47,11 @@ SpeakerLevel in dB, their raw-to-dB curve has to be measured from a recording (s
 - **Decodes the control channel:** Connect and DisConnect to the amplifier (node 0x186, FBlock
   0x22 AudioAmplifier, instance 0x05), SinkInfo, Mute, and the two volume messages seen so far
   (0x22.0x46D SpeakerLevel in dB, and the gateway's 0xF0.0x409 levels).
-- **Plays three streams from the frames:** the main source plus the navigation and phone
-  announcement sinks, at the positions the Connect messages give. Each stream gets its own level
-  and mute.
+- **Plays four streams from the frames,** at the positions the Connect messages give: the main
+  source; phone, navigation and voice prompts; the parking sensors; the chimes. These are the
+  amplifier's sinks 1 to 4 as JLR uses them. Each stream gets its own level and mute: the
+  parking sensors follow their own level setting, and the chimes keep a fixed level, so they can't
+  disappear with the volume turned down.
 - **Outputs S/PDIF:** 24-bit, at the ring's 48 kHz, IEC 60958-3 consumer format, through an
   Everlight T10 TOSLINK transmitter.
 - **Logs to a laptop:** what it receives and what it decides, through the Tang Nano's USB-UART.
@@ -94,8 +96,8 @@ ring in -> FOT receiver -> R1 -> U1 (one 74LVC1G34 buffer) -> R2 -> FOT transmit
 - **Nothing new on the network:** the reader sends nothing on MOST and has no address, so the car's
   network sees no new node.
 - **Fully reversible:** unplug the loop-in adapter and the car is back to stock.
-- **Start-up volume:** until the first volume message arrives, the main source plays at -12 dB and
-  the navigation and phone streams at -6 dB. Keep your DSP's or amplifier's own gain low on the
+- **Start-up volume:** until the first volume message arrives, the main source plays at -12 dB, and
+  phone/navigation, the parking sensors and the chimes at -6 dB. Keep your DSP's or amplifier's own gain low on the
   first drive.
 
 ## Status: what is proved and what is not

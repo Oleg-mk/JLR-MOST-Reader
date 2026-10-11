@@ -88,7 +88,7 @@ masks start anew with each record. ctrl_decode's pulses come 1 (dropped) and 7 (
 clocks after frame 15; the record is taken 12 clocks after it, and b4..b6 are sticky in
 between.
 
-### STATUS, T = 57, 94 bytes: the heartbeat, every 2^21 clocks (21.2 ms), always
+### STATUS, T = 57, 99 bytes: the heartbeat, every 2^21 clocks (21.2 ms), always
 
 Counters run free from power-up and wrap; the PC takes the difference of two STATUS records,
 so a lost STATUS loses nothing. Shortest/longest values and peaks cover the interval since the
@@ -113,7 +113,7 @@ last STATUS.
     53..54  the last preamble pattern that differed from it (the block start's, 12 bits)
     55..58  the train's period (Q8.24 samples a tick)
     59..60  its phase error, least           61..62 greatest (samples, signed, saturated)
-    63..74  input peaks of the three streams, L and R each, |sample| >> 8 (16 bits)
+    63..74  input peaks of streams 0..2, L and R each, |sample| >> 8 (16 bits)
     75..78  output peaks, L and R, the same
     79..86  frame bytes that changed between two frames at least once, bit k = byte k (a byte
             counts from its second write after power-up; the interval runs from a clock before
@@ -121,20 +121,25 @@ last STATUS.
     87..88  ctrl_decode per stream s at bits 4s..4s+3: on, confirmed, muted, own level;
             b12 0x409 audio level heard, b13 0x409 nav level heard
     89..90  DARK in ms, 91..92 COLD in ms, as the laptop set them (0 when not attached)
-    93      X
+    93..96  input peaks of stream 3 (sink 4, the chimes), L and R, the same as 63..74
+    97      b0..b3 ctrl_decode for stream 3: on, confirmed, muted, own level; b4 0x409 parking
+            level (byte 10) heard
+    98      X
 
-### SET, T = 53, 22 bytes: each coefficient set ctrl_decode sends
+Bytes 93..97 came with the fourth stream (2026-10-11); everything before them kept its place.
 
-ctrl_decode answers every accepted level, mute or 0x409 message with a whole set of 47 words.
-Words 0..39 are constants (straight biquads), word 41 + 2s equals word 40 + 2s, word 46 is
+### SET, T = 53, 26 bytes: each coefficient set ctrl_decode sends
+
+ctrl_decode answers every accepted level, mute or 0x409 message with a whole set of 49 words.
+Words 0..39 are constants (straight biquads), word 41 + 2s equals word 40 + 2s, word 48 is
 1 - k with the commit. So one record carries the set without loss:
 
     3..6    time of its first word
     7       its tag
-    8       b0 the commit came, b1 all 47 words came in order with this tag, b2 every constant
+    8       b0 the commit came, b1 all 49 words came in order with this tag, b2 every constant
             word was the constant and every R gain equalled its L
-    9..20   the three stream gains (words 40, 42, 44), Q4.28, little endian
-    21      X
+    9..24   the four stream gains (words 40, 42, 44, 46), Q4.28, little endian
+    25      X
 
 ### CMD, T = 3C, 16 bytes: each position command (command 01)
 

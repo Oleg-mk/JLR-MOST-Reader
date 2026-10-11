@@ -2,10 +2,11 @@
 """run_e2e.py - the whole reader from the line: a JLR ring in, S/PDIF out, every link checked.
 
 ring_stim.py makes the line: frames with the head unit's stereo at channels 8..11, a second
-stereo at 30..33 the head unit switches to later, a mono source at 20, 21 (the navigation
-sink), and the head unit's telegrams in the control channel - Connect, its Result,
-SpeakerLevel, the gateway's levels, Mute on and off, the second Connect - distorted within
-SP4 and sampled as the IDES8 does. tb_core.v drives reader_core with it and logs every link.
+stereo at 30..33 the head unit switches to later, mono sources at 20, 21 (sink 2: navigation),
+24, 25 (sink 3: the parking sensors) and 26, 27 (sink 4: the chimes), and the head unit's
+telegrams in the control channel - Connect and its Result for each, SpeakerLevel to sinks 1
+and 4, the gateway's levels (byte 8 for navigation, byte 10 for the parking sensors), Mute on
+and off, the second Connect - distorted within SP4 and sampled as the IDES8 does. tb_core.v drives reader_core with it and logs every link.
 Checked, per corner:
   RX     every frame the receiver completed equals the frame sent, byte for byte, once the
          block index is known (compare.py's rule)
@@ -18,7 +19,7 @@ Checked, per corner:
   SPDIF  the line read back off the 1.26 ns grid: every frame well formed, one S/PDIF frame per
          ring frame, the samples the runs' outputs frame for frame, every run of the line a
          whole number of half-cells to within the grid
-  GAIN   at the end, the output is the main stereo times its level and the mono source times
+  GAIN   at the end, the output is the main stereo times its level plus each mono source times
          its own, as the levels the telegrams carried say (the gains have settled by then)
 Corners: the placeholder preamble with pwd +0.15 UI, jitter 0.195 UI, +500 ppm (the long run,
 with the gain check); the S/PDIF-like preamble with pwd -0.15 UI, jitter 0.195 UI, -500 ppm.
@@ -63,8 +64,12 @@ FSAMP = 792e6
 CH_A = (8, 9, 10, 11)               # the head unit's stereo, 16 bit
 CH_B = (30, 31, 32, 33)             # the stereo it switches to
 CH_NAV = (20, 21)                   # the navigation sink, mono 16 bit
+CH_PDC = (24, 25)                   # sink 3, the parking sensors, mono 16 bit
+CH_CHIME = (26, 27)                 # sink 4, the chimes, mono 16 bit
 LEVEL_DB = -20                      # SpeakerLevel to sink 1
 NAV_RAW = 25                        # 0x409 byte 8 for the navigation sink
+PDC_RAW = 10                        # 0x409 byte 10 for the parking sensors
+CHIME_DB = -14                      # SpeakerLevel to sink 4
 
 
 def sig_a(i):
@@ -81,7 +86,15 @@ def sig_nav(i):
     return int(0.2 * 32767 * math.sin(2 * math.pi * 440 * i / FS))
 
 
-STREAMS = [(CH_A, sig_a), (CH_B, sig_b), (CH_NAV, sig_nav)]
+def sig_pdc(i):
+    return int(0.15 * 32767 * math.sin(2 * math.pi * 1200 * i / FS))
+
+
+def sig_chime(i):
+    return int(0.1 * 32767 * math.sin(2 * math.pi * 2400 * i / FS))
+
+
+STREAMS = [(CH_A, sig_a), (CH_B, sig_b), (CH_NAV, sig_nav), (CH_PDC, sig_pdc), (CH_CHIME, sig_chime)]
 
 # the head unit's telegrams, by control block (16 frames each)
 BLOCKS = {
@@ -92,7 +105,12 @@ BLOCKS = {
     8: jlr.connect_result(sink=2),
     9: jlr.mute(True),
     10: jlr.mute(False),
-    12: jlr.gateway_levels(31, NAV_RAW, 10),
+    12: jlr.gateway_levels(31, NAV_RAW, PDC_RAW),
+    14: jlr.connect(list(CH_PDC), sink=3),
+    15: jlr.connect_result(sink=3),
+    16: jlr.connect(list(CH_CHIME), sink=4),
+    17: jlr.connect_result(sink=4),
+    18: jlr.speaker_level([CHIME_DB] * 7, sink=4),
     40: jlr.disconnect(),
     41: jlr.connect(list(CH_B), src_delay=2),
     42: jlr.connect_result(),
@@ -117,7 +135,7 @@ def s32(v):
 
 def expect_in(fr, pos, wid, mon):
     out = []
-    for s in range(3):
+    for s in range(4):
         p = pos[6 * s:6 * s + 6]
         w = wid[s]
         if w == 3:
@@ -222,10 +240,10 @@ def run_corner(name, nfr, pwd, jit, ppm, pre, gain_check, work):
             continue
         if t[0] == "P":
             v = list(map(int, t[1:]))
-            P[v[0]] = (v[1:19], v[19:22], v[22:25])
+            P[v[0]] = (v[1:25], v[25:29], v[29:33])
         elif t[0] == "S":
             h = int(t[3], 16)
-            S[int(t[1])] = (int(t[2]), [s24((h >> (24 * (5 - k))) & 0xFFFFFF) for k in range(6)])
+            S[int(t[1])] = (int(t[2]), [s24((h >> (24 * (7 - k))) & 0xFFFFFF) for k in range(8)])
         elif t[0] == "E":
             h = int(t[2], 16)
             E[int(t[1])] = ([s24((h >> (24 * (1 - k))) & 0xFFFFFF) for k in range(2)], int(t[3]))
@@ -248,13 +266,13 @@ def run_corner(name, nfr, pwd, jit, ppm, pre, gain_check, work):
         n_pick += 1
         if ins != expect_in(rx_frames[lf], *P[lf]):
             bad_pick += 1
-    # the positions ever in effect: none, A, B for stream 0; none, NAV mono for stream 1
-    fa = [c + 1 for c in CH_A]; fb_ = [c + 1 for c in CH_B]; fn = [c + 1 for c in CH_NAV]
-    valid0 = {((0,) * 6, 0, 0), ((fa[0], fa[1], 0, fa[2], fa[3], 0), 2, 0), ((fb_[0], fb_[1], 0, fb_[2], fb_[3], 0), 2, 0)}
-    valid1 = {((0,) * 6, 0, 0), ((fn[0], fn[1], 0, 0, 0, 0), 2, 1)}
+    # the positions ever in effect: none, A, B for stream 0; none or the mono source for 1, 2, 3
+    fa = [c + 1 for c in CH_A]; fb_ = [c + 1 for c in CH_B]
+    mono = lambda ch: {((0,) * 6, 0, 0), ((ch[0] + 1, ch[1] + 1, 0, 0, 0, 0), 2, 1)}
+    valid = [{((0,) * 6, 0, 0), ((fa[0], fa[1], 0, fa[2], fa[3], 0), 2, 0), ((fb_[0], fb_[1], 0, fb_[2], fb_[3], 0), 2, 0)},
+             mono(CH_NAV), mono(CH_PDC), mono(CH_CHIME)]
     stray = sum(1 for pos, wid, mon in P.values()
-                if (tuple(pos[0:6]), wid[0], mon[0]) not in valid0 or (tuple(pos[6:12]), wid[1], mon[1]) not in valid1
-                or wid[2] != 0)
+                if any((tuple(pos[6 * s:6 * s + 6]), wid[s], mon[s]) not in valid[s] for s in range(4)))
     seen_b = any((tuple(pos[0:6]), wid[0]) == ((fb_[0], fb_[1], 0, fb_[2], fb_[3], 0), 2) for pos, wid, _ in P.values())
     ok = bad_pick == 0 and n_pick > nfr - 60 and stray == 0 and seen_b
     print(f"  PICK : {'PASS' if ok else 'FAIL'}  {n_pick} runs, {bad_pick} on wrong samples; {stray} frames with "
@@ -321,6 +339,8 @@ def run_corner(name, nfr, pwd, jit, ppm, pre, gain_check, work):
     if gain_check:
         g0 = gain_tables.db_word(LEVEL_DB) * 256 / gain_tables.ONE          # the engine's target gains
         g1 = gain_tables.raw_word(NAV_RAW) * 256 / gain_tables.ONE
+        g2 = gain_tables.raw_word(PDC_RAW) * 256 / gain_tables.ONE
+        g3 = gain_tables.db_word(CHIME_DB) * 256 / gain_tables.ONE
         tail = [(n, S[n][0]) for n in sorted(S) if n in E][-120:-20]
         worst_g, n_g = 0.0, 0
 
@@ -334,16 +354,20 @@ def run_corner(name, nfr, pwd, jit, ppm, pre, gain_check, work):
             la = s16(fr[CH_B[0] + 1], fr[CH_B[1] + 1])                    # stream 0 is on the second stereo by now
             ra = s16(fr[CH_B[2] + 1], fr[CH_B[3] + 1])
             nav = s16(fr[CH_NAV[0] + 1], fr[CH_NAV[1] + 1])
-            want = (round(la * 256 * g0 + nav * 256 * g1), round(ra * 256 * g0 + nav * 256 * g1))
+            pdc = s16(fr[CH_PDC[0] + 1], fr[CH_PDC[1] + 1])
+            chi = s16(fr[CH_CHIME[0] + 1], fr[CH_CHIME[1] + 1])
+            mix = nav * 256 * g1 + pdc * 256 * g2 + chi * 256 * g3
+            want = (round(la * 256 * g0 + mix), round(ra * 256 * g0 + mix))
             got_o = E[n][0]
             for w, g in zip(want, got_o):
                 worst_g = max(worst_g, abs(w - g))
             n_g += 1
         # the gains glide with k = 1/256: 1800 frames after the last change they are within 0.1 %
-        allow = 0.002 * 2 ** 23 * (0.4 * g0 + 0.2 * g1) + 4
+        allow = 0.002 * 2 ** 23 * (0.4 * g0 + 0.2 * g1 + 0.15 * g2 + 0.1 * g3) + 4
         ok = n_g >= 90 and worst_g <= allow
         print(f"  GAIN : {'PASS' if ok else 'FAIL'}  {n_g} frames at the end: output = stereo x {g0:.4f} ({LEVEL_DB} dB) + "
-              f"navigation x {g1:.4f} (raw {NAV_RAW}), the worst off by {worst_g:.0f} of 2^23 (allowed {allow:.0f})")
+              f"navigation x {g1:.4f} (raw {NAV_RAW}) + parking x {g2:.4f} (byte 10 raw {PDC_RAW}) + chimes x "
+              f"{g3:.4f} ({CHIME_DB} dB), the worst off by {worst_g:.0f} of 2^23 (allowed {allow:.0f})")
         ok_all &= ok
 
     ok = not any(e.startswith("OVERRUN") for e in errs) and "status=0" in stat.replace("status=0", "status=0")

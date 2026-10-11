@@ -6,6 +6,7 @@
 localparam [31:0] GAIN_DEF_MAIN = 32'h000404DE;   // -12 dB
 localparam [31:0] GAIN_DEF_S1   = 32'h000804DD;   // -6 dB
 localparam [31:0] GAIN_DEF_S2   = 32'h000804DD;   // -6 dB
+localparam [31:0] GAIN_DEF_S3   = 32'h000804DD;   // -6 dB
 function [31:0] gain_db_word;
     input [7:0] db;
     begin

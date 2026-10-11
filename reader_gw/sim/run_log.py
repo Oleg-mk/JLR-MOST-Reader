@@ -73,6 +73,7 @@ TAIL = 900000
 
 CH_A = (8, 9, 10, 11)
 CH_NAV = (20, 21)
+CH_CHIME = (26, 27)                 # sink 4, stream 3: its CMD, SET gain, peak and state in the log
 
 
 def sig_a(i):
@@ -84,7 +85,11 @@ def sig_nav(i):
     return int(0.2 * 32767 * math.sin(2 * math.pi * 440 * i / FS))
 
 
-STREAMS = [(CH_A, sig_a), (CH_NAV, sig_nav)]
+def sig_chime(i):
+    return int(0.1 * 32767 * math.sin(2 * math.pi * 2400 * i / FS))
+
+
+STREAMS = [(CH_A, sig_a), (CH_NAV, sig_nav), (CH_CHIME, sig_chime)]
 BLOCKS = {
     2: jlr.connect(list(CH_A), src_delay=2),
     3: jlr.connect_result(),
@@ -94,6 +99,8 @@ BLOCKS = {
     9: jlr.mute(True),
     10: jlr.mute(False),
     12: jlr.gateway_levels(31, 25, 10),
+    14: jlr.connect(list(CH_CHIME), sink=4),
+    15: jlr.speaker_level([-14] * 7, sink=4),
 }
 
 

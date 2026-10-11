@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 
 SYNC = 0xA5
 BLOCK, STATUS, SET, CMD, EVENT, CAPTURE, FILL = 0x5A, 0x57, 0x53, 0x3C, 0x45, 0xC5, 0x46
-LENGTH = {BLOCK: 56, STATUS: 94, SET: 22, CMD: 16, EVENT: 14, CAPTURE: 42, FILL: 42}
+LENGTH = {BLOCK: 56, STATUS: 99, SET: 26, CMD: 16, EVENT: 14, CAPTURE: 42, FILL: 42}
 NAME = {BLOCK: "BLOCK", STATUS: "STATUS", SET: "SET", CMD: "CMD", EVENT: "EVENT", CAPTURE: "CAPTURE",
         FILL: "FILL"}
 
@@ -105,14 +105,18 @@ def _fields(kind: int, r: bytes) -> tuple[int | None, dict]:
             "c1h": (r[39], r[40]), "c2h": (r[41], r[42]), "c1l": (r[43], r[44]), "c2l": (r[45], r[46]),
             "maxgap": _u32(r, 47), "com_sig": _u16(r, 51) & 0xFFF, "odd_sig": _u16(r, 53) & 0xFFF,
             "per": _u32(r, 55), "err_min": _s16(r, 59), "err_max": _s16(r, 61),
-            "peaks": [_u16(r, 63 + 2 * i) for i in range(8)],
+            # s0 L R, s1 L R, s2 L R, out L R (63..78), then s3 L R (93..96), added with stream 3
+            "peaks": [_u16(r, 63 + 2 * i) for i in range(8)] + [_u16(r, 93), _u16(r, 95)],
             "chmask": int.from_bytes(r[79:87], "little"),
-            "dstate": _u16(r, 87), "dark_ms": _u16(r, 89), "cold_ms": _u16(r, 91),
+            # bits 0..13 at 87..88 (streams 0..2, the 0x409 audio and nav levels), 14..18 at 97
+            # (stream 3, the 0x409 parking level)
+            "dstate": (_u16(r, 87) & 0x3FFF) | (r[97] & 0x1F) << 14,
+            "dark_ms": _u16(r, 89), "cold_ms": _u16(r, 91),
         }
     if kind == SET:
         fl = r[8]
         return ts, {"tag": r[7], "commit": fl & 1, "inorder": fl >> 1 & 1, "consts": fl >> 2 & 1,
-                    "gains": [struct.unpack_from("<i", r, 9 + 4 * k)[0] for k in range(3)]}
+                    "gains": [struct.unpack_from("<i", r, 9 + 4 * k)[0] for k in range(4)]}
     if kind == CMD:
         return ts, {"cmd": r[7], "p": int.from_bytes(r[8:15], "big")}
     if kind == EVENT:

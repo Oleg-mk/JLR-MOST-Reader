@@ -162,7 +162,7 @@ def sets(ev):
             continue
         a, v, f, t = p >> 48 & 63, p >> 16 & 0xFFFFFFFF, p >> 8 & 0xFF, p & 0xFF
         if a == 0:
-            cur = dict(c=c, tag=t, ord=1, cst=int(v == W_ONE and f == 0), nxt=1, l=0, g=[0, 0, 0])
+            cur = dict(c=c, tag=t, ord=1, cst=int(v == W_ONE and f == 0), nxt=1, l=0, g=[0, 0, 0, 0])
             continue
         if cur is None:
             continue
@@ -172,19 +172,19 @@ def sets(ev):
             exp = W_ONE if a % 5 == 0 else 0
             if v != exp or f != 0:
                 cur["cst"] = 0
-        elif a <= 45:
+        elif a <= 47:
             if a % 2 == 0:
                 cur["l"] = v
             elif v != cur["l"]:
                 cur["cst"] = 0
             if f != 0:
                 cur["cst"] = 0
-            if a in (40, 42, 44):
+            if a in (40, 42, 44, 46):
                 cur["g"][(a - 40) // 2] = v
-        if a == 46:
+        if a == 48:
             fl = (f & 1) | (cur["ord"] << 1) | (int(cur["cst"] and v == W_1MK and f == 1) << 2)
             body = bytes([0xA5, 0x53, 0]) + struct.pack("<I", ts(cur["c"])) + bytes([cur["tag"], fl]) + \
-                struct.pack("<III", *cur["g"])
+                struct.pack("<IIII", *cur["g"])
             out.append((c, body))
             cur = None
         else:

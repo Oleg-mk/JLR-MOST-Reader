@@ -13,6 +13,8 @@ Sources:
        Freelander 2 and on the AUD3 amplifiers, signed dB bytes
   [J3] memory most-open-projects-jlr: JLR-HU / SocketMost parser - the gateway's 0xF0.0x409
        Status with the levels in bytes 2, 8 and 10 ("from one parser")
+  [J4] mObridge, MOST25 DA Series Guide, pp. 18-19 (the mono inputs by maker): for Jaguar and Land
+       Rover phone sink 2, navigation sink 2, PDC sink 3, chimes sink 4, voice sink 2
   [S6] FBlock_AudioAmplifier_2V4-3: 0x111 Connect, 0x112 DisConnect, 0x46D SpeakerLevel
   [S7] GeneralFBlock: 0x113 Mute [SinkNr, Status]
   [S9] MOST25-to-AUDIO docs/host_control_formats.md section 4: Connect.StartResult =
@@ -45,6 +47,9 @@ NODE_IPOD = 0x0189          # the media module under the seat (Harman/Becker, OS
 AMP_FBLOCK = S.FBLOCK_AUDIOAMPLIFIER    # 0x22
 AMP_INST = 0x05                          # [J1]; the gateway's shadow is 0xA1
 AMP_SINK_MAIN = 1                        # the sink the head unit's source is connected to [J1]
+AMP_SINK_PHONE_NAV = 2                   # phone, navigation and voice, mono [J4]
+AMP_SINK_PDC = 3                         # the parking sensors, mono [J4]
+AMP_SINK_CHIMES = 4                      # the chimes, mono [J4]
 AUX_FBLOCK = 0x24                        # AuxIn [J1]
 AUX_INST = 0x01
 JLR_FBLOCK = 0xF0                        # the gateway's proprietary block [J1]

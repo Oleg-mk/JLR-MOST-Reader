@@ -1,7 +1,7 @@
 // dsp_core.v - a small multiply-accumulate engine: one fixed program per ring frame.
 //
 // It does to our output what the factory amplifier does to its speakers:
-// tone on the main source, then three sources mixed into L and R with gains
+// tone on the main source, then four sources mixed into L and R with gains
 // that move smoothly. The program, the memory map and a bit-exact model are
 // in sim/dsp_asm.py; dsp_prog.vh is generated from it. The host computes the
 // coefficients and gains; this engine only multiplies and adds.
@@ -15,7 +15,7 @@
 //      a store, a move, OUT's first step; the next instruction is fetched
 //   C  the product is formed (registered); STR writes its remainder
 // So a store or an output sees every product before it, and a read sees
-// every write before it. The program takes 449 clocks (dsp_asm.py asserts
+// every write before it. The program takes 479 clocks (dsp_asm.py asserts
 // < 1000) of the about 2062 clk_s of a frame; `overrun` is set if a frame
 // starts before it has finished.
 //
@@ -38,7 +38,7 @@ module dsp_core (
     input  wire         clk,                // clk_s
     input  wire         rst,
     input  wire         start,              // one clock per frame: latch in_w, run
-    input  wire [143:0] in_w,               // s0L s0R s1L s1R s2L s2R, 24 bit each, s0L on top
+    input  wire [191:0] in_w,               // s0L s0R s1L s1R s2L s2R s3L s3R, 24 bit each, s0L on top
     output wire [5:0]   c_addr,             // coefficient read address...
     input  wire [31:0]  c_q,                // ...and its word, one clock later
     output reg  [47:0]  out_w,              // L R, 24 bit each, L on top
@@ -63,28 +63,30 @@ module dsp_core (
     assign c_addr = rom_q[12:7];            // presented in A
 
     // ------------------------------------------------------ inputs
-    reg  [143:0] in_r;
+    reg  [191:0] in_r;
 
     // -------------------------------------------- the D write, decoded in A
     // rom_q holds an instruction from its A to its C (pc moves at the end of B,
     // rom_q follows a clock later), so these, loaded from rom_q on every clock,
-    // are in B and C what ir is. Decoded from ir in B, the input sample's 6-way
+    // are in B and C what ir is. Decoded from ir in B, the input sample's 8-way
     // pick and the op's write mux sat in one clock before the memory (0.35 ns
     // short at clk_s); from here the write data is one mux of registers and of
     // the two late inputs (acc's saturation, the D memory's output).
     // rom_q is the program ROM's own output, with no register after it (its
     // data comes about 2.3 ns after the clock), so the sample is picked by a
-    // plain mux on constant slices: written as the part-select at 143 - 24 k,
+    // plain mux on constant slices: written as the part-select at 191 - 24 k,
     // Gowin built the index as an adder and a one-hot decode, 7.4 ns of LUTs.
     wire [3:0]  op_n = rom_q[17:14];
     reg  [23:0] in24_n;
     always @* begin
-        case (rom_q[9:7])                   // IN's a: 0..5 (dsp_asm.py); 6 and 7 never come
-            3'd0:    in24_n = in_r[143:120];
-            3'd1:    in24_n = in_r[119:96];
-            3'd2:    in24_n = in_r[95:72];
-            3'd3:    in24_n = in_r[71:48];
-            3'd4:    in24_n = in_r[47:24];
+        case (rom_q[9:7])                   // IN's a: 0..7 (dsp_asm.py)
+            3'd0:    in24_n = in_r[191:168];
+            3'd1:    in24_n = in_r[167:144];
+            3'd2:    in24_n = in_r[143:120];
+            3'd3:    in24_n = in_r[119:96];
+            3'd4:    in24_n = in_r[95:72];
+            3'd5:    in24_n = in_r[71:48];
+            3'd6:    in24_n = in_r[47:24];
             default: in24_n = in_r[23:0];
         endcase
     end

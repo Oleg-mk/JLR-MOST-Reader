@@ -87,7 +87,7 @@ module reader_core #(
                      .rate48(rate48), .err_last(err_last), .pin_o(pin));
 
     // ------------------------------------------------------------ the control channel
-    wire cok, tel, hit, dropped, par_known, par_sense, cbusy; wire [7:0] ccmd; wire [55:0] cp; wire [13:0] dstate;
+    wire cok, tel, hit, dropped, par_known, par_sense, cbusy; wire [7:0] ccmd; wire [55:0] cp; wire [18:0] dstate;
     ctrl_decode #(.PAR_LEARN(PAR_LEARN), .PAR_BAD(PAR_BAD))
                 u_ctl (.clk(clk), .rst(rst_c), .byte_we(bwe), .byte_addr(ba), .byte_data(bd), .frame_done(fd),
                        .frame_par(fpar), .blk_idx(bi), .blk_known(bk), .locked(rx_lk),
@@ -96,7 +96,7 @@ module reader_core #(
 
     // ------------------------------------------------------------ the streams, the engine, S/PDIF
     wire overrun, cq_ok, commit_ok, commit_bad, bank_sw, estart; wire [7:0] cq_cmd, commit_tag; wire [55:0] cq_p;
-    wire [143:0] in_w; wire [47:0] out_w;
+    wire [191:0] in_w; wire [47:0] out_w;
     amp_out u_amp (.clk(clk), .rst(rst_c), .cmd_ok(cok), .cmd(ccmd), .cmd_p(cp),
                    .byte_we(bwe), .byte_addr(ba), .byte_data(bd), .frame_done(fd),
                    .run(run), .tick(tick), .fstart(fstart), .sub(sub), .phase_n(phase_n), .rate48(rate48),

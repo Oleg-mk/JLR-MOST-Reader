@@ -73,8 +73,8 @@ class Replay:
                 self.got.append(("01", p))
             else:
                 self.words[p >> 48 & 63] = p
-                if p >> 48 & 63 == 46:
-                    g = tuple(self.words.get(a, 0) >> 16 & 0xFFFFFFFF for a in (40, 42, 44))
+                if p >> 48 & 63 == 48:
+                    g = tuple(self.words.get(a, 0) >> 16 & 0xFFFFFFFF for a in (40, 42, 44, 46))
                     g = tuple(v - (1 << 32) if v >> 31 else v for v in g)
                     self.got.append(("set", g, p >> 8 & 1))
                     self.words.clear()
@@ -196,7 +196,7 @@ def decode(files, out: Path):
                      f",{f['ui_q']},{f['bias']},{'/'.join(map(str, f['c1h']))},{'/'.join(map(str, f['c2h']))},"
                      f"{'/'.join(map(str, f['c1l']))},{'/'.join(map(str, f['c2l']))},{f['maxgap']},"
                      f"{f['com_sig']:03x},{f['odd_sig']:03x},{f['err_min']},{f['err_max']},"
-                     f"{' '.join(map(str, f['peaks']))},{f['chmask']:016x},{f['dstate']:04x},"
+                     f"{' '.join(map(str, f['peaks']))},{f['chmask']:016x},{f['dstate']:05x},"
                      f"{f['dark_ms']},{f['cold_ms']}\n")
             prev_status[0] = r
         elif r.kind == LF.EVENT:
@@ -209,7 +209,7 @@ def decode(files, out: Path):
         elif r.kind == LF.SET:
             g = f["gains"]
             fd.write(f"{r.ts:>12} us  set tag {f['tag']:3} commit {f['commit']} in-order {f['inorder']} "
-                     f"constants {f['consts']}  gains {g[0] / 2**28:.6f} {g[1] / 2**28:.6f} {g[2] / 2**28:.6f}\n")
+                     f"constants {f['consts']}  gains " + " ".join(f"{v / 2**28:.6f}" for v in g) + "\n")
         elif r.kind == LF.CAPTURE:
             n = f["n"]
             if n == 0xFFFF:

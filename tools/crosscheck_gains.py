@@ -19,6 +19,10 @@ Known, intended differences, left out of the comparison:
   - the host also decodes 0x22.0x400 Volume (not a JLR message); not generated here.
   - until the main volume has been heard (0x409, or SpeakerLevel to sink 1) the reader plays its
     start-up levels where the host was silent; those blocks are not compared.
+  - the reader has a fourth stream (sink 4, the chimes) and gives stream 2 (sink 3, the parking
+    sensors) 0x409 byte 10 before byte 8; the host had three streams and byte 8 for both. Stream 3
+    is not compared, and stream 2 only while the reader has not heard a byte 10: half of the
+    sequences therefore send the 0x409 Status 9 bytes long, without it.
 
     python tools/crosscheck_gains.py [--sequences N] [--seed S]
 Needs MOST25_TO_AUDIO and MINGW_GCC as crosscheck_most_msg.py does.
@@ -26,6 +30,7 @@ Needs MOST25_TO_AUDIO and MINGW_GCC as crosscheck_most_msg.py does.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import os
 import random
 import subprocess
@@ -89,13 +94,17 @@ def sequence(rnd: random.Random):
     """Sinks 1, 2, 3 connected (with the Result the host waits for), then random levels, mutes,
     and sinks 2 / 3 going and coming."""
     tels = []
+    short_409 = rnd.random() < 0.5                  # 0x409 without byte 10: stream 2 compared throughout
     for sink, nch in ((1, 4), (2, rnd.choice([2, 4])), (3, rnd.choice([2, 3, 4, 6]))):
         tels.append(jlr.connect(sorted(rnd.sample(range(60), nch)), sink=sink))
         tels.append(jlr.connect_result(sink=sink))
     for _ in range(40):
         r = rnd.random()
         if r < 0.3:
-            tels.append(jlr.gateway_levels(rnd.randrange(46), rnd.randrange(46), rnd.randrange(46)))
+            g = jlr.gateway_levels(rnd.randrange(46), rnd.randrange(46), rnd.randrange(46))
+            if short_409:
+                g = dataclasses.replace(g, data=g.data[:9])
+            tels.append(g)
         elif r < 0.55:
             n = rnd.choice([1, 2, 7])
             lv = [rnd.choice([rnd.randrange(-128, 128), rnd.randrange(-60, 1), rnd.randrange(-125, -115)])
@@ -156,7 +165,7 @@ def main() -> int:
             if ex0 == 2:
                 pairs += [(w[2], model.gain_word(1), "s1 L"), (w[3], model.gain_word(1), "s1 R")]
                 s1_cmp += 1
-            if ex1 == 3:
+            if ex1 == 3 and not (model.have_p and not model.have_db[2] and not model.muted[2]):
                 pairs += [(w[4], model.gain_word(2), "s2 L"), (w[5], model.gain_word(2), "s2 R")]
                 s2_cmp += 1
             for c_word, m_word, what in pairs:

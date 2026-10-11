@@ -54,12 +54,16 @@ answer - a request's device is its target, an answer's its source.
 
 | Message | Taken as |
 |---|---|
-| 0x22 0x111 Connect, StartResult(Ack) `[SinkNr, SrcDelay, ch...]` | sink 1..3 is stream 0..2; the position takes effect at once, unconfirmed until the device's Result `[SinkNr]`; its Error turns every unconfirmed Connect to that device off (R08); a Result with nothing on, or from another device, changes nothing |
+| 0x22 0x111 Connect, StartResult(Ack) `[SinkNr, SrcDelay, ch...]` | sink 1..4 is stream 0..3; the position takes effect at once, unconfirmed until the device's Result `[SinkNr]`; its Error turns every unconfirmed Connect to that device off (R08); a Result with nothing on, or from another device, changes nothing |
 | 0x22 0x110 SinkInfo, Status `[SinkNr, DataType, Resolution, AudioChannels, SinkDelay, ch...]` | the device's own word on its sink, confirmed as it comes; any other SinkInfo on the sink means nothing is known: off |
 | 0x22 0x112 DisConnect, StartResult(Ack) `[SinkNr]` | the stream off, if to the device the position came from |
 | 0x22 0x113 Mute, Set/SetGet/Status `[SinkNr, Status]` | sink 0 = all, kept for every stream whether connected yet or not (R04); bit 0 = mute |
 | 0x22 0x46D SpeakerLevel, Set/SetGet/Status `[param, SinkNr, dB...]` | the loudest speaker, signed dB |
-| 0xF0 0x409, Status | byte 2 the audio level, byte 8 navigation and phone, raw |
+| 0xF0 0x409, Status | byte 2 the audio level, byte 8 navigation and phone, byte 10 the parking sensors, raw |
+
+The sinks are JLR's as mObridge's MOST25 DA guide (pp. 18-19) lists them for Jaguar and Land
+Rover: 1 the main source, 2 phone, navigation and voice, 3 the parking sensors, 4 the chimes. A
+reader that played only sinks 1..3 (until 2026-10-11) would have lost the chimes.
 
 Formats (audit R09): from a SinkInfo the full tuple - PCM only, 2 or 3 bytes a sample, 1 or 2
 channels, the list exactly Resolution x AudioChannels long. A Connect carries the list alone;
@@ -68,18 +72,22 @@ channels, the list exactly Resolution x AudioChannels long. A Connect carries th
 three 16-bit channels, is refused until a SinkInfo names the format. Channels are 0..59,
 ascending; frame byte = channel + 1.
 
-A stream's gain, as the host chose it: muted, 0; its own SpeakerLevel in dB; else, for streams 1
-and 2, 0x409 byte 8; else the volume - SpeakerLevel to sink 1, else 0x409 byte 2; else the
-stream's start-up level. The start-up levels are the user's decision of 2026-10-03: the main
-source at -12 dB (a quarter of full amplitude, "a third or less"), the announcement streams at
-figures of their own (-6 dB until set otherwise), all three in `sim/gain_tables.py`, and the
-first coefficient set after reset carries them, so a Connect is heard before any level message.
+A stream's gain, as the host chose it, with streams 2 and 3 added: muted, 0; its own SpeakerLevel
+in dB; else the 0x409 level of its kind - stream 2 (the parking sensors) byte 10, then byte 8,
+stream 1 byte 8; else the volume - SpeakerLevel to sink 1, else 0x409 byte 2 - but never for
+stream 3, the chimes (no volume message is on record for them, and a chime must not vanish with
+the volume turned down); else the stream's start-up level. The start-up levels are the user's
+decision of 2026-10-03: the main source at -12 dB (a quarter of full amplitude, "a third or
+less"), the others at figures of their own (-6 dB until set otherwise, and for good for the
+chimes unless a SpeakerLevel names sink 4), all four in `sim/gain_tables.py`, and the first
+coefficient set after reset carries them, so a Connect is heard before any level message.
+`run_ctrl.py` asks these rules of the model directly before it holds the RTL to the model.
 Positions survive a lost lock (R06: a gap must not silence the one output); a ring restart takes
 the FPGA's supply with it and so clears everything.
 
 Output: the command bus `host_cmd.v` gave `amp_out` in MOST25-to-AUDIO (`ok`, `cmd`, `p`). A
 change of a stream's position sends command 01 for it. A level or mute message rewrites the
-whole coefficient set as the host did: 47 words, eight straight biquads, k x gain per stream
+whole coefficient set as the host did: 49 words, eight straight biquads, k x gain per stream
 and output (k = 1/256: a step settles in 5 ms), 1 - k, the commit with the last word, all
 carrying the set's tag (amp_out switches banks only on a whole set of one tag, R03). One
 command a clock, about 60 clocks a set; the next block cannot complete for another 16 frames.
@@ -233,6 +241,10 @@ on the build that ships, and the sweep only shows the spread. Before any of that
 command-01 pick
 (pos_pend -> ps -> pos_b -> p, the worst path) got a clock of its own (p01_q, a clock ahead of
 the command; checked by run_ctrl.py and run_e2e.py): 121.6 MHz, 22.9 %, without the log.
+With the fourth stream (2026-10-11: sink 4, the chimes, and the parking level) the chip is 57 %
+logic, 59 % registers, 86 % of the slices, 28 of 46 BSRAM, 4 of 24 DSP; a trial build from the
+uncommitted tree (ID 882D129D) gave 117.0 MHz, 18.2 %. The figure that counts is the build that
+ships, in `kit/2_fpga/BUILD.txt`.
 The checks that it still does the same: `run_ctrl.py`, `run_nco.py` (with three corners added
 that put the train's tick at UI 0 next to the edge's clock), `run_amp.py`, `run_e2e.py`; the
 tick logs of every `run_nco.py` corner equal, line for line, those of the reviewed intermediate
@@ -252,7 +264,7 @@ included, and logs every command; `ctrl_model.py` is given the same frames and m
 same commands, one for one and in order, in five scenarios: the JLR messages in a plausible
 sequence (connect, levels by both messages and their precedence, mute all and one, SinkInfo
 formats, Result and Error, silence by dB, +18 dB); everything to refuse or ignore (segments,
-5 or 3 channels, channel 60, an unordered list, sinks 0 and 4, Get, another FBlock, short
+5 or 3 channels, channel 60, an unordered list, sinks 0 and 5, Get, another FBlock, short
 payloads, a system message, blocks with the index unknown or the receiver unlocked, idle blocks,
 MOST High Protocol, bad addresses, a Result or Error with nothing on, a DisConnect from another
 device); the Ack forms with a SenderHandle, Status replies from the amplifier, on a ring of odd
@@ -272,21 +284,23 @@ within the grid and the loop's step; the period comes out to 1 ppm (4 ppm with j
 as two jittered edges 64 frames apart give); the train stops in the gap and runs again after
 it; at the jump it is pinned anew and runs again within a few frames.
 
-`run_amp.py`: `tb_amp.v` is MOST25-to-AUDIO's `tb_dsp.v` on the train at 48 kHz: three sources
+`run_amp.py`: `tb_amp.v` is MOST25-to-AUDIO's `tb_dsp.v` on the train at 48 kHz: four sources
 in the frame, four coefficient sets written with tags, a word lost, a commit lost, a stray word,
 refused commands; PICK, BANK, TXN, MODEL, TIME as there (every run on the right bytes, banks
 never written in use, the switches exactly for the whole sets, every output equal to the
 bit-exact model), and SPDIF in place of I2S: the line read back off the 1.26 ns grid
 (`spdif_line.py`), every frame well formed (`spdif_dec.py`: preambles, cells, parity, the
 channel status with the rate), one S/PDIF frame per ring frame, the samples the runs' outputs
-frame for frame (3838 of 3894, the first ones before the first set), and every run of the line
+frame for frame (3991 of 4049, the first ones before the first set), and every run of the line
 a whole number of half-cells to within 0.91 samples: the edges sit on the grid.
 
 `run_e2e.py`: the whole reader from the line. `ring_stim.py` makes a JLR ring as the sampler
 sees it: the head unit's stereo at channels 8..11, a second stereo at 30..33 it switches to
-later, a mono source at 20, 21 for the navigation sink, the other channels random, and in the
-control channel the head unit's telegrams - Connect and its Result, SpeakerLevel, the
-gateway's levels, Mute on and off, DisConnect and the second Connect - Biphase Mark coded,
+later, mono sources at 20, 21 (sink 2, navigation), 24, 25 (sink 3, the parking sensors) and
+26, 27 (sink 4, the chimes), the other channels random, and in the control channel the head
+unit's telegrams - Connect and its Result for each, SpeakerLevel to sinks 1 and 4, the
+gateway's levels with byte 8 and byte 10, Mute on and off, DisConnect and the second Connect -
+Biphase Mark coded,
 distorted inside SP4 (pwd +0.15 and -0.15 UI with 0.195 UI of jitter, +500 and -500 ppm, both
 preamble sets) and sampled as the IDES8 does. `tb_core.v` drives `reader_core` with it and
 logs every link, and the checks are: RX, every frame the receiver completes equals the frame
@@ -296,7 +310,8 @@ every output equals the bit-exact model's; SPDIF, the line read back is well for
 per ring frame, the samples the runs' outputs frame for frame, the edges within 1.5 samples of
 a whole half-cell (the grid plus the loop's share of the line's own jitter); GAIN, at the end
 of the 2000-frame run the output is the second stereo times the SpeakerLevel's -20 dB plus the
-navigation source times its 0x409 level, to 0.2 %. At pwd +0.316 UI with the full jitter the
+navigation source times its 0x409 byte 8 level, the parking sensors times their byte 10 level and
+the chimes times the SpeakerLevel to sink 4 (-14 dB), to 0.2 %. At pwd +0.316 UI with the full jitter the
 low pulses fall to 0.59 UI, outside SP4's 0.743 UI validity bound; there the receiver lost one
 frame in 2000 and its lock with it, and the reader's output restarted cleanly 8 frames later.
 
