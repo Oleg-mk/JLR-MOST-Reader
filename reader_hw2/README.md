@@ -228,7 +228,8 @@ all 52 parts. `tools/make_kit.py --v2 DIR` writes the kit: 1_boards from `fab/` 
 
 The caps come from `check_fit.py`'s model (it must pass) and the board's leads, into `caps/`: a STEP
 and an STL of each (the print's frame: the outer face on the bed), `caps.svg` (each cap seen from
-outside and in section, the openings' table, the notes) and a README.
+outside, in section and from below, the sizes, the notes; `caps_en.svg` the same in English) and a
+README.
 
 - A flange of the tube's outline, 30 mm square and 2.0 mm thick, sits on the tube's end face; the
   board's ends butt against the flanges, so the tube is 84.9 mm (+0.2/-0), as long as the board.
@@ -238,6 +239,16 @@ outside and in section, the openings' table, the notes) and a README.
   part underneath (8.5 mm into the tube); it stays 2.0 mm off J1's soldered action pins, and a slot
   along it, open to the inside, lets J1's peg through while the cap slides on under the board.
 - The far cap's block sits over the module's end, 0.5 mm above the USB-C.
+- Under the tube each flange runs on into a saddle (2026-10-11, the user's idea of a mounting tab):
+  3.0 mm thick, 9.0 mm along the tube from its end, an ear 10.0 mm out on either side with a 4.2 mm
+  hole. The tube's floor rests on the two saddles, and four screws through the ears hold the reader
+  in the car: 4.2 mm self-tapping (DIN 7981) or M4, a head up to 8.2 mm clears the tube's side. The
+  ring cap's saddle has a 5.0 mm hole round the head of the cap's own screw.
+  - A tab past the tube's end, the first sketch, would lie below the bed with the cap printed outer
+    face down, and would need the cap on its side with supports under both blocks. At the far end it
+    would also pass about 1 mm under a TOSLINK plug (J6's port axis 8.6 mm above the tube's bottom,
+    a plug about 10 mm tall). The saddle rises from the bed with the flange: no supports, the ear
+    holes horizontal.
 - Each cap takes a self-tapping M2 screw through the tube's wall into its block, the hole in the
   block drilled at assembly: through the floor at the ring end, through the top at the far end.
 - The tube is bonded to ground by J4 through the far cap's screw: an M2 ring terminal and a
@@ -246,8 +257,10 @@ outside and in section, the openings' table, the notes) and a README.
   rows run 2.2 mm from both long edges, J4 and J6 fill the end; the tube raw, or its anodizing
   scraped off under the washer.
 - The script fails, writing nothing, when a wall comes out thinner, an opening closer to its part,
-  a block onto a part or a lead, or the mesh is open. A scratch board with the two STEP models on it
-  rendered by KiCad (2026-10-06) shows J1, the USB-C and J6 in their openings.
+  a block onto a part or a lead, a saddle hole nearer an edge than 1.2 mm, or the mesh is open.
+- `make_views.py` puts both caps and the tube on a copy of the board, point by point from the same
+  solids, and renders the pictures in `views/` at basic quality: J1, the USB-C and J6 in their
+  openings, the saddles under the tube.
 
 ## Not yet
 

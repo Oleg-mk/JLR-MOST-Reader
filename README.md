@@ -103,11 +103,12 @@ The log is designed to answer these on the first drive ([reader_gw/README.md](re
 
 ## Build one
 
-There are two boards with the same circuit. **v2.0** (`reader_hw2/`) is the one to build:
+The short version is below; the full guide is [BUILD.md](BUILD.md). There are two boards with the
+same circuit. **v2.0** (`reader_hw2/`) is the one to build:
 84.9 x 26.5 mm, two layers, inside a 30 x 30 x 1.5 mm aluminium tube with two 3D-printed end caps.
 v1.0 (`reader_hw/`) is a flat 77.5 x 55.6 mm board with mounting holes.
 
-![The closed tube from the far end: the module's USB-C on top, the TOSLINK and power sockets below](reader_hw2/views/reader_v2_far_end.png)
+![The closed tube from the far end: the module's USB-C on top, the TOSLINK and power sockets below, the saddles with their ears under the tube](reader_hw2/views/reader_v2_far_end.png)
 
 ![The underside of the v2.0 board: every SMD part, assembled by the board house](reader_hw2/views/reader_v2_underside.png)
 
@@ -132,6 +133,7 @@ v1.0 (`reader_hw/`) is a flat 77.5 x 55.6 mm board with mounting holes.
    You also need:
    - a 30 x 30 x 1.5 aluminium tube, 84.9 mm (+0.2/-0) long, best left bare;
    - two M2 x 6 self-tapping screws, an M2 ring terminal and a serrated washer for the tube's ground;
+   - four 4.2 mm self-tapping screws (DIN 7981) or M4 screws to fix it in the car;
    - a MOST loop-in adapter for the node you will tap, as made by Kufatec, Dension or Trioma;
    - a TOSLINK cable.
 4. **Flash the FPGA** before soldering the module: write `kit/2_fpga/reader.fs` to its flash. On
@@ -153,16 +155,17 @@ v1.0 (`reader_hw/`) is a flat 77.5 x 55.6 mm board with mounting holes.
    - Fit the far cap, slide the board in from the ring end until it meets the far cap, then fit
      the ring cap; one screw each.
    - Run a short wire from the far cap's screw to J4's ground at the plug.
+   - Each cap runs on under the tube into a saddle with an ear on either side. The tube's floor
+     rests on the two saddles, and four screws through the ears hold the reader in the car.
 8. **Car:**
    - First the bypass alone: the reader in the ring, powered, and the car must sound exactly as before.
    - Then a drive with the log running.
 
-The step-by-step instructions are in Ukrainian, and a machine translation reads well:
-[reader_hw2/kit/README.md](reader_hw2/kit/README.md),
+**The full step-by-step guide in English is [BUILD.md](BUILD.md).** The same instructions in
+Ukrainian are the kit's: [reader_hw2/kit/README.md](reader_hw2/kit/README.md),
 [reader_hw2/kit/1_boards/README.md](reader_hw2/kit/1_boards/README.md),
 [kit/2_fpga/README.md](kit/2_fpga/README.md) and [kit/3_laptop/README.md](kit/3_laptop/README.md).
-The board and its design choices are described in English in
-[reader_hw2/README.md](reader_hw2/README.md).
+The board and its design choices are described in [reader_hw2/README.md](reader_hw2/README.md).
 
 ![End cap drawing](reader_hw2/caps/caps_en.svg)
 

@@ -11,7 +11,10 @@ with blocks reaching into the tube:
     opening: the web between two would be thinner than a printer makes); a block over the module's
     end takes a screw through the tube's top.
 The board's ends butt against the flanges: the tube is as long as the board. Each cap is held by a
-self-tapping M2 screw, drilled at assembly through the tube's wall into its block.
+self-tapping M2 screw, drilled at assembly through the tube's wall into its block. Under the tube each
+flange runs on into a saddle with an ear either side: the tube's floor rests on the two saddles, and four
+screws through the ears hold the reader in the car (2026-10-11, the user's idea). The saddle rises from
+the bed with the flange, so the caps still print outer face down, without supports.
 
 Written into caps/: a STEP and an STL of each cap (in the print's frame: the outer face on the bed,
 the blocks up), a drawing (caps.svg, and caps_en.svg in English) and a README. The script fails, writing nothing, when a wall is
@@ -51,6 +54,13 @@ PEG_D, PEG_CLR = 2.0, 0.4           # J1's pegs (2.1 mm holes), the slot's play 
 FAR_BLOCK_D = 6.0       # the far block's depth
 TOP_GAP = 0.5           # the far block over the USB-C's top
 FLOOR_GAP = 0.05        # the ring block's underside above the floor
+SADDLE_T = 3.0          # the saddle under the tube: its thickness
+SADDLE_L = 9.0          # how far it runs along the tube from the tube's end
+EAR = 10.0              # each ear past the tube's side
+EAR_HOLE = 4.2          # a 4.2 mm self-tapping screw (DIN 7981) or M4 into the car
+EAR_HEAD = 8.2          # DIN 7981 4.2's pan head (M4 DIN 7985: 8.0): it must clear the tube's side
+HEAD_HOLE = 5.0         # in the ring cap's saddle, round the head of the cap's own M2 screw (DIN 7981 2.2: 4.2)
+HOLE_N = 24             # segments of a round hole
 STEP_DATE = "2026-10-06T00:00:00"
 
 
@@ -195,6 +205,28 @@ def design(m):
            "blocks": [{"name": "block over the module", "ua": "блок над модулем", "poly": ccw(rrect(*fb, 0)),
                        "depth": FAR_BLOCK_D, "screw": ("top", inner / 2, FAR_BLOCK_D / 2)}], "slots": []}
 
+    # the saddles: u from A0 to A1, v from B0 to B1 (under the tube), w from the outer face to L
+    for cap in (ring, far):
+        s = {"u0": outer[0] - EAR, "u1": outer[2] + EAR, "v0": outer[1] - SADDLE_T, "v1": outer[1],
+             "l": T + SADDLE_L, "holes": []}
+        wc = T + SADDLE_L / 2
+        s["holes"] += [{"name": "ear hole", "ua": "отвір у вусі", "u": outer[0] - EAR / 2, "w": wc, "d": EAR_HOLE},
+                       {"name": "ear hole", "ua": "отвір у вусі", "u": outer[2] + EAR / 2, "w": wc, "d": EAR_HOLE}]
+        for blk in cap["blocks"]:
+            if blk["screw"][0] == "floor":
+                s["holes"].append({"name": "the cap screw's head", "ua": "під голову саморіза кришки",
+                                   "u": blk["screw"][1], "w": T + blk["screw"][2], "d": HEAD_HOLE})
+        cap["saddle"] = s
+        for h in s["holes"]:
+            r = h["d"] / 2
+            web = min(h["u"] - r - s["u0"], s["u1"] - h["u"] - r, h["w"] - r, s["l"] - h["w"] - r)
+            if h["u"] - r < outer[2] and h["u"] + r > outer[0]:      # under the tube: off the flange's foot
+                web = min(web, h["w"] - r - T)
+            if web < MIN_WEB:
+                fails.append(f"{cap['name']}: the saddle's {h['name']} at u {h['u']:.2f} leaves {web:.2f} mm, {MIN_WEB} wanted")
+        if EAR / 2 < EAR_HEAD / 2 + 0.5:
+            fails.append(f"{cap['name']}: an ear screw's head ({EAR_HEAD}) does not clear the tube's side")
+
     # the checks common to both
     for cap in (ring, far):
         boxes = [(o["name"], bbox(o["poly"])) for o in cap["openings"]]
@@ -235,50 +267,100 @@ def check_fit_in_tube(u, v, inner):
 
 
 # ---- the solid: faces in the print's frame ------------------------------------------------------
-# x = -u (the cap seen from inside, so the frame stays right-handed), y = v, z = w + T: the outer face
-# on the bed at z = 0, the flange up to z = T, the blocks from T to T + depth
+# x = -u (the cap seen from inside, so the frame stays right-handed), y = v, z = w: the outer face on
+# the bed at z = 0, the flange up to z = T, the blocks from T to T + depth, the saddle from 0 to its
+# length under the tube (y below the tube's floor)
+
+def flange_outline(cap):
+    """The flange's outline, counter-clockwise from its bottom left corner: rounded at the top, square
+    at the bottom, where the saddle carries on."""
+    u0, v0, u1, v1 = cap["outer"]
+    r, n = R_OUT, 6
+    pts = [(u0, v0), (u1, v0)]
+    for cu, cv, a0 in ((u1 - r, v1 - r, 0), (u0 + r, v1 - r, 90)):
+        for k in range(n + 1):
+            a = math.radians(a0 + 90 * k / n)
+            pts.append((round(cu + r * math.cos(a), 4), round(cv + r * math.sin(a), 4)))
+    return pts
+
+
+def circle(cu, cw, d):
+    return [(round(cu + d / 2 * math.cos(2 * math.pi * k / HOLE_N), 4),
+             round(cw + d / 2 * math.sin(2 * math.pi * k / HOLE_N), 4)) for k in range(HOLE_N)]
+
 
 def solid(cap, T):
-    def P(p, zz):
-        return (round(-p[0], 4), round(p[1], 4), round(zz, 4))
-
-    def xy(poly):           # the loop as seen in the print's frame (x = -u flips its sense)
-        return ccw([(-p[0], p[1]) for p in poly])
-
-    def back(loop):
-        return [(-p[0], p[1]) for p in loop]
-
     faces = []              # (outer loop, [hole loops]) of 3-D points, wound counter-clockwise about the normal
-    out = xy(rrect(*cap["outer"], R_OUT))
-    holes = [xy(o["poly"]) for o in cap["openings"]]
-    blocks = [(xy(b["poly"]), b["depth"]) for b in cap["blocks"]]
-    # the outer face (normal -z): clockwise seen from +z
-    faces.append(([P((-x, y), 0) for x, y in out[::-1]], [[P((-x, y), 0) for x, y in h] for h in holes]))
-    # the flange's inner face (normal +z): the blocks are holes in it
-    faces.append(([P((-x, y), T) for x, y in out], [[P((-x, y), T) for x, y in h[::-1]] for h in holes] +
-                  [[P((-x, y), T) for x, y in b[::-1]] for b, _ in blocks]))
-    # walls: the outline outward, the openings inward
-    def walls(loop, z0, z1, inward):
-        lp = loop[::-1] if inward else loop
-        for i in range(len(lp)):
-            a, b = lp[i], lp[(i + 1) % len(lp)]
-            faces.append(([P((-a[0], a[1]), z0), P((-b[0], b[1]), z0), P((-b[0], b[1]), z1), P((-a[0], a[1]), z1)], []))
-    walls(out, 0, T, False)
-    for h in holes:
+
+    def P(u, v, w):
+        return (round(-u, 4), round(v, 4), round(w, 4))
+
+    def face(outer, holes, n):
+        """Loops of (u, v, w) points; n the outward normal in (u, v, w)."""
+        o = [P(*q) for q in outer]
+        hs = [[P(*q) for q in h] for h in holes]
+        np_ = (-n[0], n[1], n[2])
+        dot = lambda a: sum(a[i] * np_[i] for i in range(3))
+        if dot(newell(o)) < 0:
+            o = o[::-1]
+        hs = [h[::-1] if dot(newell(h)) > 0 else h for h in hs]
+        faces.append((o, hs))
+
+    def walls(loop, w0, w1, inward):
+        """Side faces of a loop (counter-clockwise in u, v) from w0 to w1."""
+        for i in range(len(loop)):
+            a, b = loop[i], loop[(i + 1) % len(loop)]
+            du, dv = b[0] - a[0], b[1] - a[1]
+            n = (-dv, du, 0) if inward else (dv, -du, 0)
+            face([(a[0], a[1], w0), (b[0], b[1], w0), (b[0], b[1], w1), (a[0], a[1], w1)], [], n)
+
+    O = flange_outline(cap)
+    s = cap["saddle"]
+    A0, A1, B0, B1, L = s["u0"], s["u1"], s["v0"], s["v1"], s["l"]
+    openings = [ccw(o["poly"]) for o in cap["openings"]]
+    blocks = [(ccw(b["poly"]), b["depth"]) for b in cap["blocks"]]
+    holes = [circle(h["u"], h["w"], h["d"]) for h in s["holes"]]
+
+    # the outer face: the flange and the saddle's front as one
+    front = [(A0, B0), (A1, B0), (A1, B1)] + O[1:] + [O[0], (A0, B1)]
+    face([(u, v, 0) for u, v in front], [[(u, v, 0) for u, v in h] for h in openings], (0, 0, -1))
+    # the flange's inner face: the blocks stand on it
+    face([(u, v, T) for u, v in O], [[(u, v, T) for u, v in h] for h in openings] +
+         [[(u, v, T) for u, v in b] for b, _ in blocks], (0, 0, 1))
+    # the flange's sides, but its bottom edge, where the saddle carries on
+    walls(O[1:] + [O[0]], 0, T, False)
+    faces.pop()             # the bottom edge's face (from O[0] round to O[1])
+    for h in openings:
         walls(h, 0, T, True)
     for b, d in blocks:
         walls(b, T, T + d, False)
-        faces.append(([P((-x, y), T + d) for x, y in b], []))
+        face([(u, v, T + d) for u, v in b], [], (0, 0, 1))
+    # the saddle: its top (the tube's floor rests on it, the flange stands on it), bottom, sides, end
+    top = [(A0, 0), (O[0][0], 0), (O[0][0], T), (O[1][0], T), (O[1][0], 0), (A1, 0), (A1, L), (A0, L)]
+    face([(u, B1, w) for u, w in top], [[(u, B1, w) for u, w in h] for h in holes], (0, 1, 0))
+    face([(A0, B0, 0), (A1, B0, 0), (A1, B0, L), (A0, B0, L)], [[(u, B0, w) for u, w in h] for h in holes], (0, -1, 0))
+    face([(A0, B0, 0), (A0, B1, 0), (A0, B1, L), (A0, B0, L)], [], (-1, 0, 0))
+    face([(A1, B0, 0), (A1, B1, 0), (A1, B1, L), (A1, B0, L)], [], (1, 0, 0))
+    face([(A0, B0, L), (A1, B0, L), (A1, B1, L), (A0, B1, L)], [], (0, 0, 1))
+    for h in holes:         # the holes' walls, facing their axes
+        for i in range(len(h)):
+            a, b = h[i], h[(i + 1) % len(h)]
+            mu, mw = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+            cu, cw = sum(q[0] for q in h) / len(h), sum(q[1] for q in h) / len(h)
+            face([(a[0], B0, a[1]), (b[0], B0, b[1]), (b[0], B1, b[1]), (a[0], B1, a[1])], [], (cu - mu, 0, cw - mw))
     return faces
 
 
 # ---- triangles for the STL ----------------------------------------------------------------------
 
-def _inside_tri(p, a, b, c):
+def _inside_tri(p, a, b, c, closed=False):
+    """p inside the triangle; closed: on its edges counts too (a vertex on an ear's new edge, as the
+    flange's foot and the saddle's ends lie on one line, would leave a sliver the clipping stalls on)."""
     d1 = (p[0] - b[0]) * (a[1] - b[1]) - (a[0] - b[0]) * (p[1] - b[1])
     d2 = (p[0] - c[0]) * (b[1] - c[1]) - (b[0] - c[0]) * (p[1] - c[1])
     d3 = (p[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (p[1] - a[1])
-    return (d1 > 1e-12 and d2 > 1e-12 and d3 > 1e-12) or (d1 < -1e-12 and d2 < -1e-12 and d3 < -1e-12)
+    e = -1e-12 if closed else 1e-12
+    return (d1 > e and d2 > e and d3 > e) or (d1 < -e and d2 < -e and d3 < -e)
 
 
 def _bridge(outer, holes):
@@ -321,7 +403,7 @@ def triangulate(outer, holes):
             cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
             if cross <= 1e-12:
                 continue
-            if any(_inside_tri(poly[q], a, b, c) for q in idx if poly[q] not in (a, b, c)):
+            if any(_inside_tri(poly[q], a, b, c, closed=True) for q in idx if poly[q] not in (a, b, c)):
                 continue
             tris.append((a, b, c))
             del idx[i]
@@ -465,7 +547,7 @@ def drawing(caps, m, lang="uk"):
     """caps.svg: each cap seen from outside and in section, with its openings' table (mm, from the
     flange's outer edges: left and bottom as seen from outside that end). lang "en": caps_en.svg, the
     same drawing in English."""
-    T, S = check_fit.CAP_T, 3.0                     # the scale: 3:1
+    T, S = check_fit.CAP_T, 2.0                     # the scale: 2:1
     U = lang == "uk"
     o = []
     W, H = 420, 297
@@ -501,68 +583,112 @@ def drawing(caps, m, lang="uk"):
              'orient="auto-start-reverse"><path d="M0,2 L10,5 L0,8 z" fill="black" stroke="none"/></marker></defs>')
     text(12, 15, "JLR MOST Reader v2.0: торцеві кришки труби 30×30×1.5 (gen_caps.py)" if U else
          "JLR MOST Reader v2.0: the end caps of the 30×30×1.5 tube (gen_caps.py)", 5.0, weight="bold")
-    text(12, 21, "Масштаб 3:1, розміри в мм. Вигляд — ззовні на свій торець; u від лівого зовнішнього краю, v від нижнього. "
-         f"Вирізи — деталь + {CLR} на бік." if U else
-         "Scale 3:1, mm. Each cap seen from outside its end; u from the left outer edge, v from the bottom one. "
-         f"Openings: the part + {CLR} a side.", 3.0)
+    text(12, 21, "Масштаб 2:1, розміри в мм. Вигляд — ззовні на свій торець; u від лівого зовнішнього краю фланця, v від "
+         f"нижнього, w від зовнішньої грані всередину труби. Вирізи — деталь + {CLR} на бік." if U else
+         "Scale 2:1, mm. Each cap seen from outside its end; u from the flange's left outer edge, v from its bottom one, "
+         f"w from its outer face into the tube. Openings: the part + {CLR} a side.", 3.0)
 
     for k, cap in enumerate(caps):
-        ox, oy = 25 + k * 200, 140                  # the front view's origin: the outer bottom-left corner at (ox, oy)
+        bx = 10 + k * 205
+        ox, oy = bx + 32, 112                       # the front view's origin: the flange's outer bottom-left corner
         sh = lambda poly: [(p[0] + WALL, p[1] + WALL) for p in poly]
+        s = cap["saddle"]
+        A0, A1, B0, B1, L = s["u0"] + WALL, s["u1"] + WALL, s["v0"] + WALL, s["v1"] + WALL, s["l"]
         if U:
             title = "Кільцева кришка (J1)" if cap["name"] == "ring_cap" else "Дальня кришка (USB-C, J6, J4)"
         else:
             title = "Ring cap (J1)" if cap["name"] == "ring_cap" else "Far cap (USB-C, J6, J4)"
-        text(ox, 35, title, 4.2, weight="bold")
-        text(ox, 41, "вигляд ззовні" if U else "seen from outside", 3.0)
-        path(sh(rrect(*cap["outer"], R_OUT)), ox, oy, width=0.5)
+        text(bx + 6, 35, title, 4.2, weight="bold")
+        text(bx + 6, 41, "вигляд ззовні" if U else "seen from outside", 3.0)
+        O = flange_outline(cap)
+        path(sh([(s["u0"], s["v0"]), (s["u1"], s["v0"]), (s["u1"], s["v1"])] + O[1:] + [O[0], (s["u0"], s["v1"])]),
+             ox, oy, width=0.5)
         path(sh(rrect(0, 0, m["inner"], m["inner"], check_fit.CORNER_R)), ox, oy, dash=True, width=0.2)
         for op in cap["openings"]:
             path(sh(op["poly"]), ox, oy, width=0.5)
         for b in cap["blocks"]:
             path(sh(b["poly"]), ox, oy, dash=True, width=0.3)
+        for h in s["holes"]:                        # through the saddle, upwards: hidden lines
+            for e in (-1, 1):
+                x = h["u"] + WALL + e * h["d"] / 2
+                path([(x, B0), (x, B1)], ox, oy, dash=True, close=False, width=0.2)
         size = 2 * WALL + m["inner"]
-        dim_h(0, size, -3.0, f"{size:.1f}", ox, oy)
-        dim_v(0, size, -3.0, f"{size:.1f}", ox, oy)
-        # the openings' table
-        ty = oy + 20
-        text(ox, ty, "Виріз: u від … до, v від … до (від зовнішніх країв фланця)" if U else
-             "Opening: u from … to, v from … to (from the flange's outer edges)", 3.0, weight="bold")
-        for i, op in enumerate(cap["openings"]):
+        dim_h(0, size, -5.0, f"{size:.1f}", ox, oy)
+        dim_h(A0, A1, -8.5, f"{A1 - A0:.1f}", ox, oy)
+        dim_v(0, size, -12.0, f"{size:.1f}", ox, oy)
+        dim_v(B0, B1, A1 + 2.5, f"{B1 - B0:.1f}", ox, oy)
+        # the table
+        ty = oy + 30
+        rows = []
+        for op in cap["openings"]:
             b = bbox(op["poly"])
-            text(ox, ty + 5 + 5 * i, f"{op['ua'] if U else op['name']}: u {b[0] + WALL:.2f}…{b[2] + WALL:.2f} ({b[2] - b[0]:.2f}), "
-                 f"v {b[1] + WALL:.2f}…{b[3] + WALL:.2f} ({b[3] - b[1]:.2f})", 2.8)
-        n = len(cap["openings"])
-        for i, blk in enumerate(cap["blocks"]):
+            rows.append(f"{op['ua'] if U else op['name']}: u {b[0] + WALL:.2f}…{b[2] + WALL:.2f} ({b[2] - b[0]:.2f}), "
+                        f"v {b[1] + WALL:.2f}…{b[3] + WALL:.2f} ({b[3] - b[1]:.2f})")
+        for blk in cap["blocks"]:
             b = bbox(blk["poly"])
             what = (f"{blk['ua']} (пунктир, всередину на {blk['depth']:.1f})" if U else
                     f"{blk['name']} (dashed, {blk['depth']:.1f} into the tube)")
-            text(ox, ty + 5 + 5 * (n + i), f"{what}: u {b[0] + WALL:.2f}…"
-                 f"{b[2] + WALL:.2f}, v {b[1] + WALL:.2f}…{b[3] + WALL:.2f}", 2.8)
-        for i, s in enumerate(cap["slots"]):
-            text(ox, ty + 5 + 5 * (n + len(cap["blocks"]) + i),
-                 f"паз під фіксатор J1 уздовж блока: u {s[0] + WALL:.2f}…{s[1] + WALL:.2f}, від v {s[2] + WALL:.2f} до верху блока"
-                 if U else
-                 f"slot for J1's peg along the block: u {s[0] + WALL:.2f}…{s[1] + WALL:.2f}, from v {s[2] + WALL:.2f} to the block's top",
-                 2.8)
-        # the section: w to the right (into the tube), v up; the flange from -T to 0
-        sx = ox + (2 * WALL + m["inner"]) * S + 18
+            rows.append(f"{what}: u {b[0] + WALL:.2f}…{b[2] + WALL:.2f}, v {b[1] + WALL:.2f}…{b[3] + WALL:.2f}")
+        for sl in cap["slots"]:
+            rows.append(f"паз під фіксатор J1 уздовж блока: u {sl[0] + WALL:.2f}…{sl[1] + WALL:.2f}, від v {sl[2] + WALL:.2f} до верху блока"
+                        if U else
+                        f"slot for J1's peg along the block: u {sl[0] + WALL:.2f}…{sl[1] + WALL:.2f}, from v {sl[2] + WALL:.2f} to the block's top")
+        rows.append(f"сідло: u {A0:.2f}…{A1:.2f}, v {B0:.2f}…{B1:.2f}, w 0…{L:.2f}" if U else
+                    f"saddle: u {A0:.2f}…{A1:.2f}, v {B0:.2f}…{B1:.2f}, w 0…{L:.2f}")
+        ears = [h for h in s["holes"] if h["name"] == "ear hole"]
+        rows.append((f"отвори у вухах: Ø{EAR_HOLE}, u " if U else f"ear holes: Ø{EAR_HOLE}, u ")
+                    + (" і " if U else " and ").join(f"{h['u'] + WALL:.2f}" for h in ears) + f", w {ears[0]['w']:.2f}")
+        for h in s["holes"]:
+            if h["name"] != "ear hole":
+                rows.append(f"{h['ua'] if U else h['name']}: Ø{h['d']}, u {h['u'] + WALL:.2f}, w {h['w']:.2f}")
+        text(bx + 6, ty, "Розміри: u, v від зовнішніх країв фланця, w від зовнішньої грані" if U else
+             "Sizes: u, v from the flange's outer edges, w from its outer face", 3.0, weight="bold")
+        for i, r in enumerate(rows):
+            text(bx + 6, ty + 5 + 5 * i, r, 2.8)
+        # the view from below: u as in the front view, w downwards from the outer face
+        by = ty + 5 + 5 * len(rows) + 9
+        text(bx + 6, by - 4, "вигляд знизу (зовнішня грань — угорі)" if U else "seen from below (the outer face at the top)", 3.0)
+        bxy = lambda u, w: (ox + u * S, by + w * S)
+        pts = [bxy(A0, 0), bxy(A1, 0), bxy(A1, L), bxy(A0, L)]
+        o.append('<path d="' + " ".join(f"{'M' if i == 0 else 'L'}{x:.2f},{y:.2f}" for i, (x, y) in enumerate(pts))
+                 + ' Z" stroke-width="0.5"/>')
+        x0, y0 = bxy(0, T)
+        x1, y1 = bxy(size, L)
+        o.append(f'<path d="M{x0:.2f},{y1:.2f} L{x0:.2f},{y0:.2f} L{x1:.2f},{y0:.2f} L{x1:.2f},{y1:.2f}" '
+                 'stroke-width="0.2" stroke-dasharray="1.5,1"/>')        # the tube resting on it, and the flange's foot
+        for h in s["holes"]:
+            cx, cy = bxy(h["u"] + WALL, h["w"])
+            o.append(f'<circle cx="{cx:.2f}" cy="{cy:.2f}" r="{h["d"] / 2 * S:.2f}" stroke-width="0.4"/>')
+            text(cx, cy + h["d"] / 2 * S + 3.2, f"Ø{h['d']}", 2.4, "middle")
+        xa = ox + A1 * S + 3
+        o.append(f'<line x1="{xa:.2f}" y1="{by:.2f}" x2="{xa:.2f}" y2="{by + L * S:.2f}" stroke-width="0.18" '
+                 'marker-start="url(#a)" marker-end="url(#a)"/>')
+        text(xa + 1.2, by + L * S / 2 + 1, f"{L:.1f}", 2.6)
+        # the section: w to the right (into the tube), v up
+        sx = bx + 126
         text(sx, 41, "розріз уздовж труби (всередину — праворуч)" if U else "section along the tube (inside to the right)", 3.0)
         um = m["inner"] / 2                         # the cut: the tube's middle
         cuts = sorted((bbox(op["poly"])[1], bbox(op["poly"])[3]) for op in cap["openings"]
                       if bbox(op["poly"])[0] < um < bbox(op["poly"])[2])
-        lo = -WALL
-        for c0, c1 in cuts + [(m["inner"] + WALL, None)]:
-            path([(0, lo + WALL), (T, lo + WALL), (T, c0 + WALL), (0, c0 + WALL)], sx, oy, width=0.5)
-            lo = c1
-        for c0, c1 in cuts:
-            text(sx - 1.5, oy - ((c0 + c1) / 2 + WALL) * S, "виріз" if U else "opening", 2.4, "end")
+        gaps = sorted((h["w"] - h["d"] / 2, h["w"] + h["d"] / 2) for h in s["holes"]
+                      if abs(h["u"] - um) < h["d"] / 2)
+        c0 = cuts[0][0] if cuts else m["inner"] + WALL
+        w_end = gaps[0][0] if gaps else L
+        path([(0, B0), (w_end, B0), (w_end, B1), (T, B1), (T, c0 + WALL), (0, c0 + WALL)], sx, oy, width=0.5)
+        for i, (g0, g1) in enumerate(gaps):
+            g_end = gaps[i + 1][0] if i + 1 < len(gaps) else L
+            path([(g1, B0), (g_end, B0), (g_end, B1), (g1, B1)], sx, oy, width=0.5)
+        for i, (k0, k1) in enumerate(cuts):
+            nxt = cuts[i + 1][0] if i + 1 < len(cuts) else m["inner"] + WALL
+            path([(0, k1 + WALL), (T, k1 + WALL), (T, nxt + WALL), (0, nxt + WALL)], sx, oy, width=0.5)
+            text(sx - 1.5, oy - ((k0 + k1) / 2 + WALL) * S, "виріз" if U else "opening", 2.4, "end")
         for b in cap["blocks"]:
             bb = bbox(b["poly"])
             path([(T, bb[1] + WALL), (T + b["depth"], bb[1] + WALL), (T + b["depth"], bb[3] + WALL), (T, bb[3] + WALL)],
                  sx, oy, width=0.5)
             dim_h(T, T + b["depth"], bb[3] + WALL + 2.0, f"{b['depth']:.1f}", sx, oy)
-        dim_h(0, T, -3.5, f"{T:.1f}", sx, oy)
+        dim_h(0, T, -5.0, f"{T:.1f}", sx, oy)
+        dim_h(0, L, -8.5, f"{L:.1f}", sx, oy)
         # the board, dotted, and the tube's walls
         zb = m["z"] + WALL
         path([(T, zb), (T + 12, zb), (T + 12, zb + check_fit.PCB_T), (T, zb + check_fit.PCB_T)], sx, oy, dash=True, width=0.2)
@@ -571,6 +697,7 @@ def drawing(caps, m, lang="uk"):
         for vv in (0, WALL, m["inner"] + WALL, m["inner"] + 2 * WALL):
             path([(T, vv), (T + 14, vv)], sx, oy, dash=True, close=False, width=0.15)
         text(sx + (T + 14.5) * S, oy - (WALL / 2) * S, "стінка труби" if U else "tube wall", 2.4)
+        text(sx + (L + 1.0) * S, oy - (B0 / 2) * S + 1, "сідло" if U else "saddle", 2.4)
 
     notes = [
         "Друк: FDM із PETG або ASA (PLA у машині м'якне), або замовлення MJF PA12; зовнішньою гранню на стіл, без підтримок.",
@@ -578,10 +705,12 @@ def drawing(caps, m, lang="uk"):
         f"Труба 30×30×1.5, довжина {m['L']:.1f} +0.2/−0 мм, торці рівні й без задирок: плата між фланцями.",
         "Фіксація: по одному саморізу M2×6 на кришку. Отвір Ø2.2 у стінці труби, у блок свердлити Ø1.6 при складанні:",
         "  " + "; ".join(("кільцева" if c["name"] == "ring_cap" else "дальня") + " — "
-                         + ("у дні" if blk["screw"][0] == "floor" else "у стелі")
-                         + f" труби, {blk['screw'][2]:.1f} мм від торця, по осі"
+                         + ("у дні труби, крізь отвір у сідлі" if blk["screw"][0] == "floor" else "у стелі труби")
+                         + f", {blk['screw'][2]:.1f} мм від торця, по осі"
                          for c in caps for blk in c["blocks"]) + ".",
         "Кільцеву кришку надягати після плати: паз у блоці пропускає фіксатор J1, блок стає під плату.",
+        f"Кріплення в машині: труба лежить на двох сідлах; чотири гвинти крізь вуха — саморізи {EAR_HOLE} мм (DIN 7981) або M4,",
+        f"  голова не більша за {EAR_HEAD} мм. Сідло друкується разом із кришкою, стінкою від столу; отвори у вухах горизонтальні.",
         "Земля труби: під голову саморіза дальньої кришки — кільцевий наконечник M2 і зубчаста шайба; провід 3–5 см",
         "  до мінуса джгута J4 біля колодки (пайка, термоусадка). Труба без покриття або зачищена під шайбою.",
     ] if U else [
@@ -590,15 +719,18 @@ def drawing(caps, m, lang="uk"):
         f"Tube 30×30×1.5, {m['L']:.1f} +0.2/−0 mm long, its ends square and deburred: the board fits between the flanges.",
         "Fixing: one M2×6 self-tapping screw a cap. A Ø2.2 hole in the tube's wall, Ø1.6 drilled into the block at assembly:",
         "  " + "; ".join(("ring cap" if c["name"] == "ring_cap" else "far cap") + ": "
-                         + ("in the tube's floor" if blk["screw"][0] == "floor" else "in the tube's top")
+                         + ("in the tube's floor, through the hole in the saddle" if blk["screw"][0] == "floor"
+                            else "in the tube's top")
                          + f", {blk['screw'][2]:.1f} mm from the end, on the axis"
                          for c in caps for blk in c["blocks"]) + ".",
         "Fit the ring cap after the board: the slot in its block lets J1's peg through, the block goes under the board.",
+        f"Mounting in the car: the tube rests on the two saddles; four screws through the ears, {EAR_HOLE} mm self-tapping",
+        f"  (DIN 7981) or M4, heads up to {EAR_HEAD} mm. The saddle prints with the cap, a wall from the bed; the ear holes lie horizontal.",
         "The tube's ground: an M2 ring terminal and a serrated washer under the far cap's screw head; a 3–5 cm wire",
         "  to J4's harness ground next to the plug (soldered, heat-shrunk). The tube bare, or cleaned to metal under the washer.",
     ]
     for i, s in enumerate(notes):
-        text(12, H - 48 + 5 * i, s, 3.0)
+        text(12, H - 56 + 5 * i, s, 3.0)
     o.append("</svg>")
     return "\n".join(o) + "\n"
 
@@ -617,6 +749,11 @@ def readme(caps, m):
         for s in cap["slots"]:
             rows.append(f"| {cap['name']} | the slot along the block for J1's peg | {s[0] + WALL:.2f}..{s[1] + WALL:.2f} | "
                         f"from {s[2] + WALL:.2f} up |")
+        sd = cap["saddle"]
+        rows.append(f"| {cap['name']} | the saddle, w 0..{sd['l']:.1f} | {sd['u0'] + WALL:.2f}..{sd['u1'] + WALL:.2f} | "
+                    f"{sd['v0'] + WALL:.2f}..{sd['v1'] + WALL:.2f} |")
+        for h in sd["holes"]:
+            rows.append(f"| {cap['name']} | {h['name']}, {h['d']} mm, at w {h['w']:.2f} | {h['u'] + WALL:.2f} | through the saddle |")
     screws = "\n".join(f"  - {c['name']}: through the tube's {'floor' if blk['screw'][0] == 'floor' else 'top'}, "
                        f"{blk['screw'][2]:.1f} mm from its end, on the axis" for c in caps for blk in c["blocks"])
     table = "\n".join(rows)
@@ -628,11 +765,12 @@ Written by `gen_caps.py` from `check_fit.py`'s model of the board in the tube; d
 |---|---|
 | `ring_cap.step`, `ring_cap.stl` | the cap at J1's end |
 | `far_cap.step`, `far_cap.stl` | the cap at the module's USB-C, J6 and J4 |
-| `caps.svg` | the drawing: both caps seen from outside and in section, the openings' table, the notes (in Ukrainian) |
+| `caps.svg` | the drawing: both caps seen from outside, in section and from below, the sizes, the notes (in Ukrainian) |
 | `caps_en.svg` | the same drawing in English |
 
 The models are in the print's frame: the outer face on the bed (z = 0), the flange up to
-{check_fit.CAP_T} mm, the blocks above it; x runs to the left as seen from outside.
+{check_fit.CAP_T} mm, the blocks above it, the saddle up to {check_fit.CAP_T + SADDLE_L:.1f} mm; x runs to the left as seen from
+outside.
 
 ## The caps
 
@@ -646,9 +784,15 @@ The models are in the print's frame: the outer face on the bed (z = 0), the flan
   ends {PART_GAP} mm before the first part underneath; it keeps {LEAD_KEEP} mm off J1's soldered action pins,
   and a slot along it, open to the inside, lets J1's peg through as the cap slides on.
 - The far cap's block sits over the module's end, {TOP_GAP} mm above the USB-C, and takes the screw.
+- Under the tube each flange runs on into a saddle, {SADDLE_T} mm thick and {SADDLE_L} mm along the tube from
+  its end, with an ear {EAR} mm out on either side (2026-10-11). The tube's floor rests on the two saddles,
+  and four screws through the ears' {EAR_HOLE} mm holes hold the reader: {EAR_HOLE} mm self-tapping (DIN 7981) or
+  M4, heads up to {EAR_HEAD} mm, which clear the tube's side. The ring cap's saddle has a {HEAD_HOLE} mm hole
+  round the head of the cap's own screw. The saddle rises from the bed with the flange, so the caps
+  still print without supports; the ear holes lie horizontal.
 
-Openings and blocks, mm, seen from outside that end: u from the flange's left edge, v from its
-bottom edge:
+Openings, blocks and the saddle, mm, seen from outside that end: u from the flange's left edge, v
+from its bottom edge, w from its outer face into the tube:
 
 | Cap | What | u | v |
 |---|---|---|---|
@@ -659,8 +803,9 @@ bottom edge:
 - FDM in PETG or ASA (PLA softens in a parked car), or MJF PA12 from a print service; the outer
   face on the bed, no supports.
 - One self-tapping M2 x 6 screw per cap, a 2.2 mm hole in the tube's wall, the block drilled 1.6 mm
-  through it at assembly:
+  through it at assembly (the ring cap's through the hole in its saddle):
 {screws}
+- In the car: the tube's floor down on the two saddles, four screws through the ears.
 - The ring cap goes on after the board is in: its block slides under the board, J1's peg through
   the slot.
 - The tube's bond to ground, by J4: an M2 ring terminal and a serrated washer under the far cap's

@@ -34,7 +34,7 @@ J4_H = 6.07             # check_fit: the Molex part page
 
 # name, which tube, kicad-cli's camera
 VIEWS = [
-    ("reader_v2_in_tube.png", "cut", ["--side", "top", "--rotate", "-62,0,-28", "--perspective", "--zoom", "1.15"]),
+    ("reader_v2_in_tube.png", "cut", ["--side", "top", "--rotate", "-62,0,-28", "--perspective", "--zoom", "0.9"]),
     ("reader_v2_far_end.png", "closed", ["--side", "top", "--rotate", "-70,0,-128", "--perspective", "--zoom", "0.9"]),
     ("reader_v2_underside.png", "none", ["--side", "bottom", "--zoom", "1.6"]),
 ]
