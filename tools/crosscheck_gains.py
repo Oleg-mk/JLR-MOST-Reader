@@ -4,8 +4,13 @@
 reader_gw/sim/ctrl_model.py (proven equal to rtl/ctrl_decode.v by run_ctrl.py) turns levels and
 mutes into dsp_core gain words. The MOST25-to-AUDIO host did the same in C (sound.c, dsp_img.c,
 amp_model.c), written earlier and separately, so it is compiled here and fed the same blocks;
-after every block the C side prints its 7 gain-related words (k x gain for 3 streams x L/R,
+after every block the C side prints its gain-related words (k x gain for each stream x L/R,
 then 1 - k) and the model's must match.
+
+The harness takes the host's stream count from its dsp_map.h (DSP_N_STREAMS): three streams
+(47 words) as the host was written, four (49 words) once it does what the reader does (sink 4,
+the chimes). With four, every stream is compared and the reader's rules for streams 2 and 3 are
+the host's too, so a difference there is a finding, not an exception.
 
 Known, intended differences, left out of the comparison:
   - the host puts the amplifier's extra sinks on streams 1, 2 in SinkNr order among the
@@ -19,10 +24,10 @@ Known, intended differences, left out of the comparison:
   - the host also decodes 0x22.0x400 Volume (not a JLR message); not generated here.
   - until the main volume has been heard (0x409, or SpeakerLevel to sink 1) the reader plays its
     start-up levels where the host was silent; those blocks are not compared.
-  - the reader has a fourth stream (sink 4, the chimes) and gives stream 2 (sink 3, the parking
-    sensors) 0x409 byte 10 before byte 8; the host had three streams and byte 8 for both. Stream 3
-    is not compared, and stream 2 only while the reader has not heard a byte 10: half of the
-    sequences therefore send the 0x409 Status 9 bytes long, without it.
+  - against a three-stream host only: the reader has a fourth stream (sink 4, the chimes) and
+    gives stream 2 (sink 3, the parking sensors) 0x409 byte 10 before byte 8; that host had byte 8
+    for both. Stream 3 is not compared, and stream 2 only while the reader has not heard a byte 10:
+    half of the sequences therefore send the 0x409 Status 9 bytes long, without it.
 
     python tools/crosscheck_gains.py [--sequences N] [--seed S]
 Needs MOST25_TO_AUDIO and MINGW_GCC as crosscheck_most_msg.py does.
@@ -33,6 +38,7 @@ import argparse
 import dataclasses
 import os
 import random
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -59,6 +65,7 @@ HARNESS = r'''
 #include "sound.h"
 #include "amp_model.h"
 #include "dsp_img.h"
+#define NX (DSP_N_STREAMS - 1)          /* the host's streams besides the main one */
 static snd_t s_snd;
 static am_t s_am;
 static void cb(void *ctx, const mm_tel_t *t) {
@@ -76,26 +83,36 @@ int main(void) {
         for (int i = 0; i < 32; i++) { unsigned v; sscanf(&line[2 * i], "%2x", &v); b[i] = (uint8_t)v; }
         mm_block(&m, b, frame, cb, NULL);
         frame += 16;
-        am_sink_t ex[2]; am_extras(&s_am, ex, 2);
-        dsp_extra_t dx[2];
-        for (int k = 0; k < 2; k++) { dx[k].sink = ex[k].pos.bits ? ex[k].nr : 0; dx[k].muted = ex[k].muted; }
+        am_sink_t ex[NX]; am_extras(&s_am, ex, NX);
+        dsp_extra_t dx[NX];
+        for (int k = 0; k < NX; k++) { dx[k].sink = ex[k].pos.bits ? ex[k].nr : 0; dx[k].muted = ex[k].muted; }
         int32_t w[DSP_C_IMAGE];
         dsp_image(&s_snd, &snd_cfg_default, am_main_muted(&s_am), dx, 48000.0, w);
         printf("G %d", n++);
         for (int a = DSP_C_KT(0, 0); a <= DSP_C_1MK; a++) printf(" %08X", (uint32_t)w[a]);
-        printf(" %d %d %d\n", am_main_muted(&s_am), dx[0].sink, dx[1].sink);
+        printf(" %d", am_main_muted(&s_am));
+        for (int k = 0; k < NX; k++) printf(" %d", dx[k].sink);
+        printf("\n");
     }
     return 0;
 }
 '''
 
 
-def sequence(rnd: random.Random):
-    """Sinks 1, 2, 3 connected (with the Result the host waits for), then random levels, mutes,
-    and sinks 2 / 3 going and coming."""
+def host_streams() -> int:
+    """DSP_N_STREAMS of the host's dsp_map.h: 3 as written, 4 once it has sink 4."""
+    m = re.search(r"#define\s+DSP_N_STREAMS\s+(\d+)", (REF / "include" / "dsp_map.h").read_text(encoding="utf-8"))
+    return int(m.group(1)) if m else 3
+
+
+def sequence(rnd: random.Random, ns: int):
+    """Sinks 1 .. ns connected (with the Result the host waits for), then random levels, mutes,
+    and the extra sinks going and coming."""
     tels = []
     short_409 = rnd.random() < 0.5                  # 0x409 without byte 10: stream 2 compared throughout
-    for sink, nch in ((1, 4), (2, rnd.choice([2, 4])), (3, rnd.choice([2, 3, 4, 6]))):
+    extra = list(range(2, ns + 1))
+    first = [(1, 4), (2, rnd.choice([2, 4])), (3, rnd.choice([2, 3, 4, 6]))] + [(s, 2) for s in range(4, ns + 1)]
+    for sink, nch in first:
         tels.append(jlr.connect(sorted(rnd.sample(range(60), nch)), sink=sink))
         tels.append(jlr.connect_result(sink=sink))
     for _ in range(40):
@@ -109,13 +126,13 @@ def sequence(rnd: random.Random):
             n = rnd.choice([1, 2, 7])
             lv = [rnd.choice([rnd.randrange(-128, 128), rnd.randrange(-60, 1), rnd.randrange(-125, -115)])
                   for _ in range(n)]
-            tels.append(jlr.speaker_level(lv, sink=rnd.choice([1, 1, 2, 3])))
+            tels.append(jlr.speaker_level(lv, sink=rnd.choice([1, 1] + extra)))
         elif r < 0.8:
-            tels.append(jlr.mute(rnd.random() < 0.5, sink=rnd.choice([0, 1, 1, 2, 3])))
+            tels.append(jlr.mute(rnd.random() < 0.5, sink=rnd.choice([0, 1, 1] + extra)))
         elif r < 0.9:
-            tels.append(jlr.disconnect(sink=rnd.choice([2, 3])))
+            tels.append(jlr.disconnect(sink=rnd.choice(extra)))
         else:
-            s = rnd.choice([2, 3])
+            s = rnd.choice(extra)
             tels.append(jlr.connect(sorted(rnd.sample(range(60), rnd.choice([2, 4]))), sink=s))
             tels.append(jlr.connect_result(sink=s))
     return [build_block(t) for t in tels]
@@ -140,8 +157,9 @@ def main() -> int:
         print(r.stdout, r.stderr)
         print("FAIL: the harness did not build")
         return 2
+    ns = host_streams()
     rnd = random.Random(a.seed)
-    seqs = [sequence(rnd) for _ in range(a.sequences)]
+    seqs = [sequence(rnd, ns) for _ in range(a.sequences)]
     stdin = ""
     for blocks in seqs:
         stdin += "RESET\n" + "".join(b.hex().upper() + "\n" for b in blocks)
@@ -149,25 +167,28 @@ def main() -> int:
     lines = [l.split() for l in out.splitlines() if l.startswith("G ")]
     n = 0
     compared = exact = off1 = bad = 0
-    s1_cmp = s2_cmp = 0
+    s_cmp = [0] * ns
     for blocks in seqs:
         model = CtrlDecoder()
         for b in blocks:
             model.block(b)
             f = lines[n]
             n += 1
-            w = [int(x, 16) for x in f[2:9]]
-            ex0, ex1 = int(f[10]), int(f[11])
+            nw = 2 * ns + 1
+            w = [int(x, 16) for x in f[2:2 + nw]]
+            sinks = [int(x) for x in f[3 + nw:3 + nw + ns - 1]]     # the host's extra stream k plays this sink
             if not (model.have_a or model.have_db[0]):
                 continue            # the reader plays its start-up levels here; the host was silent
             pairs = [(w[0], model.gain_word(0), "s0 L"), (w[1], model.gain_word(0), "s0 R"),
-                     (w[6], W_1MK, "1-k")]
-            if ex0 == 2:
-                pairs += [(w[2], model.gain_word(1), "s1 L"), (w[3], model.gain_word(1), "s1 R")]
-                s1_cmp += 1
-            if ex1 == 3 and not (model.have_p and not model.have_db[2] and not model.muted[2]):
-                pairs += [(w[4], model.gain_word(2), "s2 L"), (w[5], model.gain_word(2), "s2 R")]
-                s2_cmp += 1
+                     (w[nw - 1], W_1MK, "1-k")]
+            s_cmp[0] += 1
+            for s in range(1, ns):
+                if sinks[s - 1] != s + 1:
+                    continue        # the host has another sink (or none) on this stream
+                if ns == 3 and s == 2 and model.have_p and not model.have_db[2] and not model.muted[2]:
+                    continue        # a three-stream host knows no byte 10
+                pairs += [(w[2 * s], model.gain_word(s), f"s{s} L"), (w[2 * s + 1], model.gain_word(s), f"s{s} R")]
+                s_cmp[s] += 1
             for c_word, m_word, what in pairs:
                 compared += 1
                 if c_word == m_word:
@@ -178,8 +199,9 @@ def main() -> int:
                     bad += 1
                     if bad <= 10:
                         print(f"block {n - 1} {what}: C {c_word:08X}, model {m_word:08X}  ({f})")
-    print(f"{n} blocks in {len(seqs)} sequences; {compared} words compared (stream 1 on {s1_cmp} blocks, "
-          f"stream 2 on {s2_cmp}): {exact} equal, {off1} off by one unit (float log10f on the host), {bad} wrong")
+    per = ", ".join(f"stream {s} on {s_cmp[s]}" for s in range(1, ns))
+    print(f"host with {ns} streams; {n} blocks in {len(seqs)} sequences; {compared} words compared ({per} blocks): "
+          f"{exact} equal, {off1} off by one unit (float log10f on the host), {bad} wrong")
     print("PASS" if bad == 0 and n == sum(len(s) for s in seqs) else "FAIL")
     return 1 if bad else 0
 
