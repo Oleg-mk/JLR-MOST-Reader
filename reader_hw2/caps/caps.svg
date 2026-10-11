@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297" font-family="Arial, sans-serif" fill="none" stroke="black" stroke-width="0.25">
+<rect width="420" height="297" fill="white" stroke="none"/>
 <rect x="5" y="5" width="410" height="287" stroke-width="0.5"/>
 <defs><marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,2 L10,5 L0,8 z" fill="black" stroke="none"/></marker></defs>
 <text x="12.00" y="15.00" font-size="5.0" text-anchor="start" font-weight="bold" fill="black" stroke="none">JLR MOST Reader v2.0: торцеві кришки труби 30×30×1.5 (gen_caps.py)</text>

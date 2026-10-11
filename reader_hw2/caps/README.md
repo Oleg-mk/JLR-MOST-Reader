@@ -6,7 +6,8 @@ Written by `gen_caps.py` from `check_fit.py`'s model of the board in the tube; d
 |---|---|
 | `ring_cap.step`, `ring_cap.stl` | the cap at J1's end |
 | `far_cap.step`, `far_cap.stl` | the cap at the module's USB-C, J6 and J4 |
-| `caps.svg` | the drawing: both caps seen from outside and in section, the openings' table, the notes |
+| `caps.svg` | the drawing: both caps seen from outside and in section, the openings' table, the notes (in Ukrainian) |
+| `caps_en.svg` | the same drawing in English |
 
 The models are in the print's frame: the outer face on the bed (z = 0), the flange up to
 2.0 mm, the blocks above it; x runs to the left as seen from outside.

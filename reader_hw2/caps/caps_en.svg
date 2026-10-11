@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="420mm" height="297mm" viewBox="0 0 420 297" font-family="Arial, sans-serif" fill="none" stroke="black" stroke-width="0.25">
+<rect width="420" height="297" fill="white" stroke="none"/>
+<rect x="5" y="5" width="410" height="287" stroke-width="0.5"/>
+<defs><marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0,2 L10,5 L0,8 z" fill="black" stroke="none"/></marker></defs>
+<text x="12.00" y="15.00" font-size="5.0" text-anchor="start" font-weight="bold" fill="black" stroke="none">JLR MOST Reader v2.0: the end caps of the 30×30×1.5 tube (gen_caps.py)</text>
+<text x="12.00" y="21.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Scale 3:1, mm. Each cap seen from outside its end; u from the left outer edge, v from the bottom one. Openings: the part + 0.25 a side.</text>
+<text x="25.00" y="35.00" font-size="4.2" text-anchor="start" font-weight="bold" fill="black" stroke="none">Ring cap (J1)</text>
+<text x="25.00" y="41.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">seen from outside</text>
+<path d="M113.50,140.00 L113.89,139.95 L114.25,139.80 L114.56,139.56 L114.80,139.25 L114.95,138.89 L115.00,138.50 L115.00,51.50 L114.95,51.11 L114.80,50.75 L114.56,50.44 L114.25,50.20 L113.89,50.05 L113.50,50.00 L26.50,50.00 L26.11,50.05 L25.75,50.20 L25.44,50.44 L25.20,50.75 L25.05,51.11 L25.00,51.50 L25.00,138.50 L25.05,138.89 L25.20,139.25 L25.44,139.56 L25.75,139.80 L26.11,139.95 L26.50,140.00 Z" stroke-width="0.5"/>
+<path d="M107.50,135.50 L108.28,135.40 L109.00,135.10 L109.62,134.62 L110.10,134.00 L110.40,133.28 L110.50,132.50 L110.50,57.50 L110.40,56.72 L110.10,56.00 L109.62,55.38 L109.00,54.90 L108.28,54.60 L107.50,54.50 L32.50,54.50 L31.72,54.60 L31.00,54.90 L30.38,55.38 L29.90,56.00 L29.60,56.72 L29.50,57.50 L29.50,132.50 L29.60,133.28 L29.90,134.00 L30.38,134.62 L31.00,135.10 L31.72,135.40 L32.50,135.50 Z" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<path d="M108.55,95.69 L108.94,95.64 L109.30,95.49 L109.61,95.25 L109.85,94.94 L110.00,94.58 L110.05,94.19 L110.05,57.29 L110.00,56.90 L109.85,56.54 L109.61,56.23 L109.30,55.99 L108.94,55.84 L108.55,55.79 L33.55,55.79 L33.16,55.84 L32.80,55.99 L32.49,56.23 L32.25,56.54 L32.10,56.90 L32.05,57.29 L32.05,94.19 L32.10,94.58 L32.25,94.94 L32.49,95.25 L32.80,95.49 L33.16,95.64 L33.55,95.69 Z" stroke-width="0.5"/>
+<path d="M40.60,135.35 L99.40,135.35 L99.40,101.09 L89.50,101.09 L89.50,108.29 L81.10,108.29 L81.10,101.09 L40.60,101.09 Z" stroke-width="0.3" stroke-dasharray="1.5,1"/>
+<line x1="25.00" y1="149.00" x2="115.00" y2="149.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="70.00" y="147.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">30.0</text>
+<line x1="16.00" y1="140.00" x2="16.00" y2="50.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="14.80" y="95.00" font-size="2.6" text-anchor="middle" fill="black" stroke="none" transform="rotate(-90 14.80 95.00)">30.0</text>
+<text x="25.00" y="160.00" font-size="3.0" text-anchor="start" font-weight="bold" fill="black" stroke="none">Opening: u from … to, v from … to (from the flange's outer edges)</text>
+<text x="25.00" y="165.00" font-size="2.8" text-anchor="start" font-weight="normal" fill="black" stroke="none">J1's housing: u 2.35…28.35 (26.00), v 14.77…28.07 (13.30)</text>
+<text x="25.00" y="170.00" font-size="2.8" text-anchor="start" font-weight="normal" fill="black" stroke="none">block under the board (dashed, 8.5 into the tube): u 5.20…24.80, v 1.55…12.97</text>
+<text x="25.00" y="175.00" font-size="2.8" text-anchor="start" font-weight="normal" fill="black" stroke="none">slot for J1's peg along the block: u 18.70…21.50, from v 10.57 to the block's top</text>
+<text x="133.00" y="41.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">section along the tube (inside to the right)</text>
+<path d="M133.00,140.00 L139.00,140.00 L139.00,95.69 L133.00,95.69 Z" stroke-width="0.5"/>
+<path d="M133.00,55.79 L139.00,55.79 L139.00,50.00 L133.00,50.00 Z" stroke-width="0.5"/>
+<text x="131.50" y="75.74" font-size="2.4" text-anchor="end" font-weight="normal" fill="black" stroke="none">opening</text>
+<path d="M139.00,135.35 L164.50,135.35 L164.50,101.09 L139.00,101.09 Z" stroke-width="0.5"/>
+<line x1="139.00" y1="95.09" x2="164.50" y2="95.09" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="151.75" y="93.89" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">8.5</text>
+<line x1="133.00" y1="150.50" x2="139.00" y2="150.50" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="136.00" y="149.30" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">2.0</text>
+<path d="M139.00,101.09 L175.00,101.09 L175.00,96.29 L139.00,96.29 Z" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<text x="176.50" y="99.89" font-size="2.6" text-anchor="start" font-weight="normal" fill="black" stroke="none">board: 11.47 above the floor</text>
+<path d="M139.00,140.00 L181.00,140.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<path d="M139.00,135.50 L181.00,135.50" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<path d="M139.00,54.50 L181.00,54.50" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<path d="M139.00,50.00 L181.00,50.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<text x="182.50" y="137.75" font-size="2.4" text-anchor="start" font-weight="normal" fill="black" stroke="none">tube wall</text>
+<text x="225.00" y="35.00" font-size="4.2" text-anchor="start" font-weight="bold" fill="black" stroke="none">Far cap (USB-C, J6, J4)</text>
+<text x="225.00" y="41.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">seen from outside</text>
+<path d="M313.50,140.00 L313.89,139.95 L314.25,139.80 L314.56,139.56 L314.80,139.25 L314.95,138.89 L315.00,138.50 L315.00,51.50 L314.95,51.11 L314.80,50.75 L314.56,50.44 L314.25,50.20 L313.89,50.05 L313.50,50.00 L226.50,50.00 L226.11,50.05 L225.75,50.20 L225.44,50.44 L225.20,50.75 L225.05,51.11 L225.00,51.50 L225.00,138.50 L225.05,138.89 L225.20,139.25 L225.44,139.56 L225.75,139.80 L226.11,139.95 L226.50,140.00 Z" stroke-width="0.5"/>
+<path d="M307.50,135.50 L308.28,135.40 L309.00,135.10 L309.62,134.62 L310.10,134.00 L310.40,133.28 L310.50,132.50 L310.50,57.50 L310.40,56.72 L310.10,56.00 L309.62,55.38 L309.00,54.90 L308.28,54.60 L307.50,54.50 L232.50,54.50 L231.72,54.60 L231.00,54.90 L230.38,55.38 L229.90,56.00 L229.60,56.72 L229.50,57.50 L229.50,132.50 L229.60,133.28 L229.90,134.00 L230.38,134.62 L231.00,135.10 L231.72,135.40 L232.50,135.50 Z" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<path d="M278.52,84.74 L279.62,84.63 L280.68,84.31 L281.65,83.79 L282.51,83.09 L283.21,82.23 L283.73,81.26 L284.05,80.20 L284.16,79.10 L284.05,78.00 L283.73,76.94 L283.21,75.97 L282.51,75.11 L281.65,74.41 L280.68,73.89 L279.62,73.57 L278.52,73.46 L261.48,73.46 L260.38,73.57 L259.32,73.89 L258.35,74.41 L257.49,75.11 L256.79,75.97 L256.27,76.94 L255.95,78.00 L255.84,79.10 L255.95,80.20 L256.27,81.26 L256.79,82.23 L257.49,83.09 L258.35,83.79 L259.32,84.31 L260.38,84.63 L261.48,84.74 Z" stroke-width="0.5"/>
+<path d="M303.30,131.84 L303.69,131.79 L304.05,131.64 L304.36,131.40 L304.60,131.09 L304.75,130.73 L304.80,130.34 L304.80,101.84 L304.75,101.45 L304.60,101.09 L304.36,100.78 L304.05,100.54 L303.69,100.39 L303.30,100.34 L244.20,100.34 L243.81,100.39 L243.45,100.54 L243.14,100.78 L242.90,101.09 L242.75,101.45 L242.70,101.84 L242.70,130.34 L242.75,130.73 L242.90,131.09 L243.14,131.40 L243.45,131.64 L243.81,131.79 L244.20,131.84 Z" stroke-width="0.5"/>
+<path d="M232.80,72.71 L307.20,72.71 L307.20,54.95 L232.80,54.95 Z" stroke-width="0.3" stroke-dasharray="1.5,1"/>
+<line x1="225.00" y1="149.00" x2="315.00" y2="149.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="270.00" y="147.80" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">30.0</text>
+<line x1="216.00" y1="140.00" x2="216.00" y2="50.00" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="214.80" y="95.00" font-size="2.6" text-anchor="middle" fill="black" stroke="none" transform="rotate(-90 214.80 95.00)">30.0</text>
+<text x="225.00" y="160.00" font-size="3.0" text-anchor="start" font-weight="bold" fill="black" stroke="none">Opening: u from … to, v from … to (from the flange's outer edges)</text>
+<text x="225.00" y="165.00" font-size="2.8" text-anchor="start" font-weight="normal" fill="black" stroke="none">USB-C: u 10.28…19.72 (9.44), v 18.42…22.18 (3.76)</text>
+<text x="225.00" y="170.00" font-size="2.8" text-anchor="start" font-weight="normal" fill="black" stroke="none">J6's body and J4's face: u 5.90…26.60 (20.70), v 2.72…13.22 (10.50)</text>
+<text x="225.00" y="175.00" font-size="2.8" text-anchor="start" font-weight="normal" fill="black" stroke="none">block over the module (dashed, 6.0 into the tube): u 2.60…27.40, v 22.43…28.35</text>
+<text x="333.00" y="41.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">section along the tube (inside to the right)</text>
+<path d="M333.00,140.00 L339.00,140.00 L339.00,131.84 L333.00,131.84 Z" stroke-width="0.5"/>
+<path d="M333.00,100.34 L339.00,100.34 L339.00,84.74 L333.00,84.74 Z" stroke-width="0.5"/>
+<path d="M333.00,73.46 L339.00,73.46 L339.00,50.00 L333.00,50.00 Z" stroke-width="0.5"/>
+<text x="331.50" y="116.09" font-size="2.4" text-anchor="end" font-weight="normal" fill="black" stroke="none">opening</text>
+<text x="331.50" y="79.10" font-size="2.4" text-anchor="end" font-weight="normal" fill="black" stroke="none">opening</text>
+<path d="M339.00,72.71 L357.00,72.71 L357.00,54.95 L339.00,54.95 Z" stroke-width="0.5"/>
+<line x1="339.00" y1="48.95" x2="357.00" y2="48.95" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="348.00" y="47.75" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">6.0</text>
+<line x1="333.00" y1="150.50" x2="339.00" y2="150.50" stroke-width="0.18" marker-start="url(#a)" marker-end="url(#a)"/>
+<text x="336.00" y="149.30" font-size="2.6" text-anchor="middle" font-weight="normal" fill="black" stroke="none">2.0</text>
+<path d="M339.00,101.09 L375.00,101.09 L375.00,96.29 L339.00,96.29 Z" stroke-width="0.2" stroke-dasharray="1.5,1"/>
+<text x="376.50" y="99.89" font-size="2.6" text-anchor="start" font-weight="normal" fill="black" stroke="none">board: 11.47 above the floor</text>
+<path d="M339.00,140.00 L381.00,140.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<path d="M339.00,135.50 L381.00,135.50" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<path d="M339.00,54.50 L381.00,54.50" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<path d="M339.00,50.00 L381.00,50.00" stroke-width="0.15" stroke-dasharray="1.5,1"/>
+<text x="382.50" y="137.75" font-size="2.4" text-anchor="start" font-weight="normal" fill="black" stroke="none">tube wall</text>
+<text x="12.00" y="249.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Print: FDM in PETG or ASA (PLA softens in a car), or order MJF PA12; the outer face on the bed, no supports.</text>
+<text x="12.00" y="254.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">No wall thinner than 1.2 mm. The 2.0 mm flange sits on the tube's end, the board's end butts against it.</text>
+<text x="12.00" y="259.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Tube 30×30×1.5, 84.9 +0.2/−0 mm long, its ends square and deburred: the board fits between the flanges.</text>
+<text x="12.00" y="264.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Fixing: one M2×6 self-tapping screw a cap. A Ø2.2 hole in the tube's wall, Ø1.6 drilled into the block at assembly:</text>
+<text x="12.00" y="269.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  ring cap: in the tube's floor, 4.2 mm from the end, on the axis; far cap: in the tube's top, 3.0 mm from the end, on the axis.</text>
+<text x="12.00" y="274.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">Fit the ring cap after the board: the slot in its block lets J1's peg through, the block goes under the board.</text>
+<text x="12.00" y="279.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">The tube's ground: an M2 ring terminal and a serrated washer under the far cap's screw head; a 3–5 cm wire</text>
+<text x="12.00" y="284.00" font-size="3.0" text-anchor="start" font-weight="normal" fill="black" stroke="none">  to J4's harness ground next to the plug (soldered, heat-shrunk). The tube bare, or cleaned to metal under the washer.</text>
+</svg>

@@ -14,7 +14,7 @@ The board's ends butt against the flanges: the tube is as long as the board. Eac
 self-tapping M2 screw, drilled at assembly through the tube's wall into its block.
 
 Written into caps/: a STEP and an STL of each cap (in the print's frame: the outer face on the bed,
-the blocks up), a drawing (caps.svg) and a README. The script fails, writing nothing, when a wall is
+the blocks up), a drawing (caps.svg, and caps_en.svg in English) and a README. The script fails, writing nothing, when a wall is
 thinner than a printer makes, an opening comes closer than its clearance to its part, or a block
 meets a part or a lead. The cut-outs come from check_fit.py (it must pass), the leads from the board.
 
@@ -461,14 +461,17 @@ def step(faces, name, rgb=(0.15, 0.15, 0.15)):
 
 # ---- the drawing --------------------------------------------------------------------------------
 
-def drawing(caps, m):
+def drawing(caps, m, lang="uk"):
     """caps.svg: each cap seen from outside and in section, with its openings' table (mm, from the
-    flange's outer edges: left and bottom as seen from outside that end)."""
+    flange's outer edges: left and bottom as seen from outside that end). lang "en": caps_en.svg, the
+    same drawing in English."""
     T, S = check_fit.CAP_T, 3.0                     # the scale: 3:1
+    U = lang == "uk"
     o = []
     W, H = 420, 297
     o.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}mm" height="{H}mm" viewBox="0 0 {W} {H}" '
              'font-family="Arial, sans-serif" fill="none" stroke="black" stroke-width="0.25">')
+    o.append(f'<rect width="{W}" height="{H}" fill="white" stroke="none"/>')   # white on a dark viewer too
     o.append(f'<rect x="5" y="5" width="{W - 10}" height="{H - 10}" stroke-width="0.5"/>')
 
     def text(x, y, s, size=3.0, anchor="start", weight="normal"):
@@ -496,16 +499,22 @@ def drawing(caps, m):
 
     o.append('<defs><marker id="a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="4" markerHeight="4" '
              'orient="auto-start-reverse"><path d="M0,2 L10,5 L0,8 z" fill="black" stroke="none"/></marker></defs>')
-    text(12, 15, "JLR MOST Reader v2.0: торцеві кришки труби 30×30×1.5 (gen_caps.py)", 5.0, weight="bold")
+    text(12, 15, "JLR MOST Reader v2.0: торцеві кришки труби 30×30×1.5 (gen_caps.py)" if U else
+         "JLR MOST Reader v2.0: the end caps of the 30×30×1.5 tube (gen_caps.py)", 5.0, weight="bold")
     text(12, 21, "Масштаб 3:1, розміри в мм. Вигляд — ззовні на свій торець; u від лівого зовнішнього краю, v від нижнього. "
-         f"Вирізи — деталь + {CLR} на бік.", 3.0)
+         f"Вирізи — деталь + {CLR} на бік." if U else
+         "Scale 3:1, mm. Each cap seen from outside its end; u from the left outer edge, v from the bottom one. "
+         f"Openings: the part + {CLR} a side.", 3.0)
 
     for k, cap in enumerate(caps):
         ox, oy = 25 + k * 200, 140                  # the front view's origin: the outer bottom-left corner at (ox, oy)
         sh = lambda poly: [(p[0] + WALL, p[1] + WALL) for p in poly]
-        text(ox, 35, ("Кільцева кришка (J1)" if cap["name"] == "ring_cap" else "Дальня кришка (USB-C, J6, J4)"),
-             4.2, weight="bold")
-        text(ox, 41, "вигляд ззовні", 3.0)
+        if U:
+            title = "Кільцева кришка (J1)" if cap["name"] == "ring_cap" else "Дальня кришка (USB-C, J6, J4)"
+        else:
+            title = "Ring cap (J1)" if cap["name"] == "ring_cap" else "Far cap (USB-C, J6, J4)"
+        text(ox, 35, title, 4.2, weight="bold")
+        text(ox, 41, "вигляд ззовні" if U else "seen from outside", 3.0)
         path(sh(rrect(*cap["outer"], R_OUT)), ox, oy, width=0.5)
         path(sh(rrect(0, 0, m["inner"], m["inner"], check_fit.CORNER_R)), ox, oy, dash=True, width=0.2)
         for op in cap["openings"]:
@@ -517,22 +526,28 @@ def drawing(caps, m):
         dim_v(0, size, -3.0, f"{size:.1f}", ox, oy)
         # the openings' table
         ty = oy + 20
-        text(ox, ty, "Виріз: u від … до, v від … до (від зовнішніх країв фланця)", 3.0, weight="bold")
+        text(ox, ty, "Виріз: u від … до, v від … до (від зовнішніх країв фланця)" if U else
+             "Opening: u from … to, v from … to (from the flange's outer edges)", 3.0, weight="bold")
         for i, op in enumerate(cap["openings"]):
             b = bbox(op["poly"])
-            text(ox, ty + 5 + 5 * i, f"{op['ua']}: u {b[0] + WALL:.2f}…{b[2] + WALL:.2f} ({b[2] - b[0]:.2f}), "
+            text(ox, ty + 5 + 5 * i, f"{op['ua'] if U else op['name']}: u {b[0] + WALL:.2f}…{b[2] + WALL:.2f} ({b[2] - b[0]:.2f}), "
                  f"v {b[1] + WALL:.2f}…{b[3] + WALL:.2f} ({b[3] - b[1]:.2f})", 2.8)
         n = len(cap["openings"])
         for i, blk in enumerate(cap["blocks"]):
             b = bbox(blk["poly"])
-            text(ox, ty + 5 + 5 * (n + i), f"{blk['ua']} (пунктир, всередину на {blk['depth']:.1f}): u {b[0] + WALL:.2f}…"
+            what = (f"{blk['ua']} (пунктир, всередину на {blk['depth']:.1f})" if U else
+                    f"{blk['name']} (dashed, {blk['depth']:.1f} into the tube)")
+            text(ox, ty + 5 + 5 * (n + i), f"{what}: u {b[0] + WALL:.2f}…"
                  f"{b[2] + WALL:.2f}, v {b[1] + WALL:.2f}…{b[3] + WALL:.2f}", 2.8)
         for i, s in enumerate(cap["slots"]):
             text(ox, ty + 5 + 5 * (n + len(cap["blocks"]) + i),
-                 f"паз під фіксатор J1 уздовж блока: u {s[0] + WALL:.2f}…{s[1] + WALL:.2f}, від v {s[2] + WALL:.2f} до верху блока", 2.8)
+                 f"паз під фіксатор J1 уздовж блока: u {s[0] + WALL:.2f}…{s[1] + WALL:.2f}, від v {s[2] + WALL:.2f} до верху блока"
+                 if U else
+                 f"slot for J1's peg along the block: u {s[0] + WALL:.2f}…{s[1] + WALL:.2f}, from v {s[2] + WALL:.2f} to the block's top",
+                 2.8)
         # the section: w to the right (into the tube), v up; the flange from -T to 0
         sx = ox + (2 * WALL + m["inner"]) * S + 18
-        text(sx, 41, "розріз уздовж труби (всередину — праворуч)", 3.0)
+        text(sx, 41, "розріз уздовж труби (всередину — праворуч)" if U else "section along the tube (inside to the right)", 3.0)
         um = m["inner"] / 2                         # the cut: the tube's middle
         cuts = sorted((bbox(op["poly"])[1], bbox(op["poly"])[3]) for op in cap["openings"]
                       if bbox(op["poly"])[0] < um < bbox(op["poly"])[2])
@@ -541,7 +556,7 @@ def drawing(caps, m):
             path([(0, lo + WALL), (T, lo + WALL), (T, c0 + WALL), (0, c0 + WALL)], sx, oy, width=0.5)
             lo = c1
         for c0, c1 in cuts:
-            text(sx - 1.5, oy - ((c0 + c1) / 2 + WALL) * S, "виріз", 2.4, "end")
+            text(sx - 1.5, oy - ((c0 + c1) / 2 + WALL) * S, "виріз" if U else "opening", 2.4, "end")
         for b in cap["blocks"]:
             bb = bbox(b["poly"])
             path([(T, bb[1] + WALL), (T + b["depth"], bb[1] + WALL), (T + b["depth"], bb[3] + WALL), (T, bb[3] + WALL)],
@@ -551,10 +566,11 @@ def drawing(caps, m):
         # the board, dotted, and the tube's walls
         zb = m["z"] + WALL
         path([(T, zb), (T + 12, zb), (T + 12, zb + check_fit.PCB_T), (T, zb + check_fit.PCB_T)], sx, oy, dash=True, width=0.2)
-        text(sx + (T + 12.5) * S, oy - (zb + 0.4) * S, f"плата: низ {m['z']:.2f} від дна труби", 2.6)
+        text(sx + (T + 12.5) * S, oy - (zb + 0.4) * S, f"плата: низ {m['z']:.2f} від дна труби" if U else
+             f"board: {m['z']:.2f} above the floor", 2.6)
         for vv in (0, WALL, m["inner"] + WALL, m["inner"] + 2 * WALL):
             path([(T, vv), (T + 14, vv)], sx, oy, dash=True, close=False, width=0.15)
-        text(sx + (T + 14.5) * S, oy - (WALL / 2) * S, "стінка труби", 2.4)
+        text(sx + (T + 14.5) * S, oy - (WALL / 2) * S, "стінка труби" if U else "tube wall", 2.4)
 
     notes = [
         "Друк: FDM із PETG або ASA (PLA у машині м'якне), або замовлення MJF PA12; зовнішньою гранню на стіл, без підтримок.",
@@ -568,6 +584,18 @@ def drawing(caps, m):
         "Кільцеву кришку надягати після плати: паз у блоці пропускає фіксатор J1, блок стає під плату.",
         "Земля труби: під голову саморіза дальньої кришки — кільцевий наконечник M2 і зубчаста шайба; провід 3–5 см",
         "  до мінуса джгута J4 біля колодки (пайка, термоусадка). Труба без покриття або зачищена під шайбою.",
+    ] if U else [
+        "Print: FDM in PETG or ASA (PLA softens in a car), or order MJF PA12; the outer face on the bed, no supports.",
+        f"No wall thinner than {MIN_WEB} mm. The {check_fit.CAP_T} mm flange sits on the tube's end, the board's end butts against it.",
+        f"Tube 30×30×1.5, {m['L']:.1f} +0.2/−0 mm long, its ends square and deburred: the board fits between the flanges.",
+        "Fixing: one M2×6 self-tapping screw a cap. A Ø2.2 hole in the tube's wall, Ø1.6 drilled into the block at assembly:",
+        "  " + "; ".join(("ring cap" if c["name"] == "ring_cap" else "far cap") + ": "
+                         + ("in the tube's floor" if blk["screw"][0] == "floor" else "in the tube's top")
+                         + f", {blk['screw'][2]:.1f} mm from the end, on the axis"
+                         for c in caps for blk in c["blocks"]) + ".",
+        "Fit the ring cap after the board: the slot in its block lets J1's peg through, the block goes under the board.",
+        "The tube's ground: an M2 ring terminal and a serrated washer under the far cap's screw head; a 3–5 cm wire",
+        "  to J4's harness ground next to the plug (soldered, heat-shrunk). The tube bare, or cleaned to metal under the washer.",
     ]
     for i, s in enumerate(notes):
         text(12, H - 48 + 5 * i, s, 3.0)
@@ -600,7 +628,8 @@ Written by `gen_caps.py` from `check_fit.py`'s model of the board in the tube; d
 |---|---|
 | `ring_cap.step`, `ring_cap.stl` | the cap at J1's end |
 | `far_cap.step`, `far_cap.stl` | the cap at the module's USB-C, J6 and J4 |
-| `caps.svg` | the drawing: both caps seen from outside and in section, the openings' table, the notes |
+| `caps.svg` | the drawing: both caps seen from outside and in section, the openings' table, the notes (in Ukrainian) |
+| `caps_en.svg` | the same drawing in English |
 
 The models are in the print's frame: the outer face on the bed (z = 0), the flange up to
 {check_fit.CAP_T} mm, the blocks above it; x runs to the left as seen from outside.
@@ -665,6 +694,7 @@ def main() -> int:
         print("nothing written")
         return 1
     out["caps.svg"] = drawing(caps, m).encode("utf-8")
+    out["caps_en.svg"] = drawing(caps, m, "en").encode("utf-8")
     out["README.md"] = readme(caps, m).encode("utf-8")
     OUT.mkdir(exist_ok=True)
     for name, data in out.items():
