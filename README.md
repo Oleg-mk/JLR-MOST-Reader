@@ -1,8 +1,9 @@
 # JLR MOST Reader
 
 A listen-only adapter for the MOST25 optical ring in Jaguar and Land Rover cars. It takes the stereo
-the head unit sends to the factory amplifier and applies the volume you set with the car's own
-controls. It outputs the result as S/PDIF on a TOSLINK socket, for an aftermarket DSP or amplifier.
+the head unit sends to the factory amplifier and outputs it as S/PDIF on a TOSLINK socket, for an
+aftermarket DSP or amplifier. **The car's own volume knob and steering-wheel buttons keep working:
+the reader applies their level digitally, with no loss of quality** ([how](#volume-from-the-cars-own-controls-with-no-loss-of-quality)).
 It can also log everything it sees on the ring to a laptop over USB.
 
 **Status, 2026-10-11: designed and verified in simulation, but never built and never tried in a
@@ -12,6 +13,28 @@ Every file you need to order, flash and assemble one is in this repository.
 ![The v2.0 board in its 30x30 mm aluminium tube, cut open](reader_hw2/views/reader_v2_in_tube.png)
 
 Ukrainian: [README.uk.md](README.uk.md) has the decisions, the reasoning and the full project journal.
+
+## Volume from the car's own controls, with no loss of quality
+
+The audio on the ring travels before the volume: the factory amplifier applies volume and tone
+itself. A plain MOST-to-TOSLINK tap would therefore play at full level, whatever the knob says.
+The reader decodes the volume messages and applies the level itself, in the digital domain.
+
+- **The stock controls keep working.** The knob and the steering-wheel buttons set the level as
+  before. Navigation prompts and phone calls are mixed in at their own levels, and mute works.
+- **Nothing is lost on the way:**
+  - the 16-bit stereo is taken straight from the ring's frames, sample for sample;
+  - the level is applied in 32-bit arithmetic (a 72-bit accumulator) and rounded once, to the
+    24-bit output. Every bit of the 16-bit source survives down to 48 dB of attenuation, and the
+    rounding sits at the 24-bit level, about 144 dB below full scale;
+  - no resampling: the S/PDIF runs at the ring's own 48 kHz, one output frame per ring frame;
+  - no DAC or ADC in between: the sound stays digital until your DSP or amplifier.
+- **Level changes are smooth:** a new level settles in about 5 ms, without clicks.
+
+Your DSP or amplifier can then run at a fixed gain, and the car's controls do the rest. One thing
+is still open: if the XF's amplifier turns out to get the gateway's 0x409 levels rather than
+SpeakerLevel in dB, their raw-to-dB curve has to be measured from a recording (see
+[Status](#status-what-is-proved-and-what-is-not)).
 
 ## What it does
 
