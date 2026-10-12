@@ -42,13 +42,16 @@ Run:  python gen_reader.py      (writes most_reader.kicad_sch and the project li
 from __future__ import annotations
 
 import math
+import os
 import re
 import uuid as _uuid
 from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-KLIB = Path(r"C:\Users\geniy\AppData\Local\Programs\KiCad\10.0\share\kicad\symbols")
+# KiCad 10's own symbol libraries: KiCad's KICAD10_SYMBOL_DIR, else where its Windows installer puts them
+KLIB = Path(os.environ.get("KICAD10_SYMBOL_DIR") or
+            Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "KiCad" / "10.0" / "share" / "kicad" / "symbols")
 PROJECT = "most_reader"
 LIB = "most_reader"
 NS = _uuid.UUID("7c2e9a10-4b5d-4e8f-9a01-2b3c4d5e6f70")

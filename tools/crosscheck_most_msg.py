@@ -10,9 +10,9 @@ C callback must print; any difference is a failure.
 
     python tools/crosscheck_most_msg.py [--random N] [--seed S]
 
-Needs the reference repo and the host gcc (MOST25-to-AUDIO README, "Build and test"):
-    MOST25_TO_AUDIO   default C:/Users/geniy/Desktop/MOST25-to-AUDIO
-    MINGW_GCC         default C:/Users/geniy/toolchains/mingw64/bin/gcc.exe
+Needs MOST25-to-AUDIO (github.com/Oleg-mk/MOST25-to-AUDIO) and a host gcc:
+    MOST25_TO_AUDIO   its clone, default ../MOST25-to-AUDIO, next to this repository
+    MINGW_GCC         gcc, default the one on the PATH, else ~/toolchains/mingw64/bin/gcc.exe
 The harness is compiled into tools/work (not tracked).
 """
 from __future__ import annotations
@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import os
 import random
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -31,9 +32,9 @@ from virtual_most_source import jlr, most_spec as S                             
 from virtual_most_source.control import (Telegram, build_block, classify_block,  # noqa: E402
                                          idle_block, reassemble, segment)
 
-REF = Path(os.environ.get("MOST25_TO_AUDIO", "C:/Users/geniy/Desktop/MOST25-to-AUDIO")) / \
+REF = Path(os.environ.get("MOST25_TO_AUDIO") or ROOT.parent / "MOST25-to-AUDIO") / \
     "listener_fw/components/mostctl"
-GCC = Path(os.environ.get("MINGW_GCC", "C:/Users/geniy/toolchains/mingw64/bin/gcc.exe"))
+GCC = Path(os.environ.get("MINGW_GCC") or shutil.which("gcc") or Path.home() / "toolchains/mingw64/bin/gcc.exe")
 WORK = ROOT / "tools" / "work"
 
 HARNESS = r'''

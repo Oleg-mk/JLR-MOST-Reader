@@ -6,8 +6,8 @@
 Strictly sequential (several simulations at once have frozen this machine). Tools, overridable
 with environment variables:
     OSS_CAD           oss-cad-suite root, default ~/toolchains/oss-cad-suite (iverilog, vvp)
-    MOST25_TO_AUDIO   the reference repo, default C:/Users/geniy/Desktop/MOST25-to-AUDIO
-    MINGW_GCC         the host gcc, default C:/Users/geniy/toolchains/mingw64/bin/gcc.exe
+    MOST25_TO_AUDIO   the reference repo, default ../MOST25-to-AUDIO, next to this one
+    MINGW_GCC         the host gcc, default the one on the PATH, else ~/toolchains/mingw64/bin/gcc.exe
     KICAD_CLI         kicad-cli, default %LOCALAPPDATA%/Programs/KiCad/10.0/bin/kicad-cli.exe
     KICAD_PY          KiCad's python (pcbnew), default %LOCALAPPDATA%/Programs/KiCad/10.0/bin/python.exe
 A missing tool fails its step; nothing is skipped.

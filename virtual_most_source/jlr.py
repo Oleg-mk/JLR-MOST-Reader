@@ -5,14 +5,14 @@ Nothing here was measured on the user's car. Each item names where it comes from
 recording confirms or corrects it (the project README lists what only the car can give).
 
 Sources:
-  [J1] carplay docs/most-audio-switching-jlr.md: JLR-HU (findings/most, PiMost.ts, Globals.ts)
-       and SocketMost usb branch (JlrAudioControl.ts, OS8104A.ts), by Rhys Morgan - node
-       addresses, FBlocks and instances, the DisConnect / Connect sequence to the amplifier
+  [J1] Rhys Morgan's JLR-HU (findings/most, PiMost.ts, Globals.ts) and SocketMost, usb branch
+       (JlrAudioControl.ts, OS8104A.ts), github.com/rhysmorgan134 - node addresses, FBlocks and
+       instances, the DisConnect / Connect sequence to the amplifier
   [J2] MOST25-to-AUDIO docs/control_commands.md section 4 and docs/vehicle_survey.md: the
        usb2most firmware decompile (smartgauges) - SpeakerLevel 0x46D as the volume on
        Freelander 2 and on the AUD3 amplifiers, signed dB bytes
-  [J3] memory most-open-projects-jlr: JLR-HU / SocketMost parser - the gateway's 0xF0.0x409
-       Status with the levels in bytes 2, 8 and 10 ("from one parser")
+  [J3] JLR-HU (as [J1]): the gateway's 0xF0.0x409 Status with the levels in bytes 2, 8 and 10,
+       from one parser, still to be confirmed by a recording
   [J4] mObridge, MOST25 DA Series Guide, pp. 18-19 (the mono inputs by maker): for Jaguar and Land
        Rover phone sink 2, navigation sink 2, PDC sink 3, chimes sink 4, voice sink 2
   [S6] FBlock_AudioAmplifier_2V4-3: 0x111 Connect, 0x112 DisConnect, 0x46D SpeakerLevel

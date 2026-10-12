@@ -13,15 +13,16 @@ the chimes). With four, every stream is compared and the reader's rules for stre
 the host's too, so a difference there is a finding, not an exception.
 
 Known, intended differences, left out of the comparison:
-  - the host puts the amplifier's extra sinks on streams 1, 2 in SinkNr order among the
-    CONNECTED ones and zeroes a stream without a sink; the decoder maps sink 2 -> stream 1 and
-    sink 3 -> stream 2 statically (a stream without a position plays zeros anyway). So streams
-    1 and 2 are compared only while the host has sink 2 on stream 1 / sink 3 on stream 2.
-  - the host's Mute to "all sinks" reaches only the sinks it has already seen; every sequence
-    therefore connects sinks 1, 2 and 3 first.
+  - the host puts the amplifier's extra sinks on its streams 1, 2, ... in SinkNr order among the
+    connected ones it can take and zeroes a stream without a sink; the decoder maps sink k to
+    stream k - 1 statically (a stream without a position plays zeros anyway). So stream k is
+    compared only while the host has sink k + 1 on it. A list of 3 or 6 channels, which neither
+    plays before a SinkInfo names its format, moves the host's sinks above it down a stream.
   - the host's 0x409 curve runs through log10f in float, so a word from a raw byte may differ
     by one unit in the last place; that is counted separately and allowed.
   - the host also decodes 0x22.0x400 Volume (not a JLR message); not generated here.
+  - the host also puts 0x22.0x467 MixerLevel on top of each stream's level; the decoder does not
+    decode it (reader_gw/README.md, "Not proved"); not generated here.
   - until the main volume has been heard (0x409, or SpeakerLevel to sink 1) the reader plays its
     start-up levels where the host was silent; those blocks are not compared.
   - against a three-stream host only: the reader has a fourth stream (sink 4, the chimes) and
@@ -30,7 +31,7 @@ Known, intended differences, left out of the comparison:
     half of the sequences therefore send the 0x409 Status 9 bytes long, without it.
 
     python tools/crosscheck_gains.py [--sequences N] [--seed S]
-Needs MOST25_TO_AUDIO and MINGW_GCC as crosscheck_most_msg.py does.
+Needs MOST25-to-AUDIO and a host gcc, found as crosscheck_most_msg.py finds them.
 """
 from __future__ import annotations
 
@@ -39,6 +40,7 @@ import dataclasses
 import os
 import random
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -52,9 +54,9 @@ from virtual_most_source.control import build_block                      # noqa:
 from ctrl_model import CtrlDecoder                                       # noqa: E402
 from gain_tables import W_1MK                                            # noqa: E402
 
-REF = Path(os.environ.get("MOST25_TO_AUDIO", "C:/Users/geniy/Desktop/MOST25-to-AUDIO")) / \
+REF = Path(os.environ.get("MOST25_TO_AUDIO") or ROOT.parent / "MOST25-to-AUDIO") / \
     "listener_fw/components/mostctl"
-GCC = Path(os.environ.get("MINGW_GCC", "C:/Users/geniy/toolchains/mingw64/bin/gcc.exe"))
+GCC = Path(os.environ.get("MINGW_GCC") or shutil.which("gcc") or Path.home() / "toolchains/mingw64/bin/gcc.exe")
 WORK = ROOT / "tools" / "work"
 
 HARNESS = r'''

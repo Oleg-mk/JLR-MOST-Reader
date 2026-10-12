@@ -26,7 +26,8 @@ itself. A plain MOST-to-TOSLINK tap would therefore play at full level, whatever
 The reader decodes the volume messages and applies the level itself, in the digital domain.
 
 - **The stock controls keep working.** The knob and the steering-wheel buttons set the level as
-  before. Navigation prompts and phone calls are mixed in at their own levels, and mute works.
+  before. Navigation prompts and phone calls are mixed in at their own levels, and a Mute
+  (0x22.0x113) is applied.
 - **Nothing is lost on the way:**
   - the 16-bit stereo is taken straight from the ring's frames, sample for sample;
   - the level is applied in 32-bit arithmetic (a 72-bit accumulator) and rounded once, to the
@@ -49,9 +50,10 @@ SpeakerLevel in dB, their raw-to-dB curve has to be measured from a recording (s
   amplifier plays and processes them. In effect it is a MOST bus sniffer with an audio path.
 - **Sits in the ring like any MOST device:** fibre in, fibre out. A loop-in adapter cable opens the
   ring at an existing node's connector.
-- **Decodes the control channel:** Connect and DisConnect to the amplifier (node 0x186, FBlock
-  0x22 AudioAmplifier, instance 0x05), SinkInfo, Mute, and the two volume messages seen so far
-  (0x22.0x46D SpeakerLevel in dB, and the gateway's 0xF0.0x409 levels).
+- **Decodes the control channel:** Connect and DisConnect to the amplifier (FBlock 0x22
+  AudioAmplifier; on the XF node 0x186, instance 0x05, but any node and instance is taken, see
+  [Status](#status-what-is-proved-and-what-is-not)), SinkInfo, Mute, and the two volume messages
+  seen so far (0x22.0x46D SpeakerLevel in dB, and the gateway's 0xF0.0x409 levels).
 - **Plays four streams from the frames,** at the positions the Connect messages give: the main
   source; phone, navigation and voice prompts; the parking sensors; the chimes. These are the
   amplifier's sinks 1 to 4 as JLR uses them. Each stream gets its own level and mute: the
@@ -101,8 +103,9 @@ ring in -> FOT receiver -> R1 -> U1 (one 74LVC1G34 buffer) -> R2 -> FOT transmit
   light arriving on the ring), the gateware and the TOSLINK output. If any of them fails, the ring
   still passes light. The FPGA's input is isolated by a 74LVC1G125 with Ioff, so an unpowered
   module doesn't load the line.
-- **When the ring opens:** only if the bypass loses its permanent supply (a blown fuse, KL30
-  disconnected). The same is true of every factory MOST node. Fit your own fuse where you tap KL30.
+- **When the ring opens:** if the bypass loses its permanent supply (a blown fuse, KL30
+  disconnected), or one of the few parts on its path fails: J1's FOT, R1, U1, R2 or their
+  regulator. The same is true of every factory MOST node. Fit your own fuse where you tap KL30.
 - **Nothing new on the network:** the reader sends nothing on MOST and has no address, so the car's
   network sees no new node.
 - **Fully reversible:** unplug the loop-in adapter and the car is back to stock.
@@ -156,13 +159,19 @@ That is the price of not emulating it, and it decides how you use the output.
   - the v2.0 netlist compared with v1.0 part by part and net by net;
   - the board's fit in the tube and the end caps, all generated from one model (`reader_hw2/check_fit.py`).
 - The decoder and the gain tables, cross-checked against C code written separately in the author's
-  earlier project.
+  earlier project, [MOST25-to-AUDIO](https://github.com/Oleg-mk/MOST25-to-AUDIO).
 
 **Unknown until a bench or a car:**
 
 - **Volume message:** which one the XF's amplifier actually gets. Both are decoded.
 - **Connect:** whether the stock head unit sends 0x22.0x111 Connect at all.
 - **The 0x409 levels:** their exact byte positions and level curve.
+- **Mute:** whether JLR mutes with 0x113 Mute, which is decoded, or with 0x466 MuteParameters,
+  which is not (usb2most's firmware mutes with 0x466).
+- **MixerLevel:** 0x22.0x467 is among the XF amplifier's messages and is not decoded. If the car
+  sets the prompts' or the chimes' level with it, the reader does not follow.
+- **The gateway's shadow amplifier,** 0x22 instance 0xA1 at node 0x161: the reader does not tell
+  it apart from the amplifier, so a Connect or a Mute sent to it would act on the reader's streams.
 - **Real hardware:** how a real S/PDIF receiver locks to the output's edges, which sit on a
   1.26 ns grid, and whether the module's USB bridge sustains 3 Mbaud into Windows.
 
@@ -241,14 +250,14 @@ The board and its design choices are described in [reader_hw2/README.md](reader_
 
 | Item | Approx. USD | Basis |
 |---|---|---|
-| JLCPCB: 5 boards, 2 of them assembled | 60-100, plus shipping and tax | their price page (Sept 2025): $8 setup and $3 per extended part type (about 15 here), plus the parts and the ENIG boards |
+| JLCPCB: 5 boards, 2 of them assembled | 60-100, plus shipping and tax | their price page, seen 2026-10-12 (updated 2026-09-09): Economic PCBA (one side, as here): $8.18 setup, $1.53 stencil and $3.07 per extended part type (about 15 here), plus the parts and the ENIG boards |
 | Sipeed Tang Nano 20K | 25-35 | $25 at launch; resellers $27-36 |
-| TE 1-1394640-1 | unknown | marketplaces only |
+| TE 1-1394640-1 (J1) | about 22, plus shipping | one eBay listing, seen 2026-10-12; no distributor stocks it |
 | T10 transmitter, Micro-Fit pair, tube, printed caps, screws | 15-25 | rough |
 | MOST loop-in adapter, TOSLINK cable | 25-60 | rough; depends on the node you tap |
 
-The first reader comes to roughly $130-220 plus J1. The second board from the same order costs
-only its hand parts and cables.
+The first reader comes to roughly $150-245, plus shipping and tax. The second board from the same
+order costs only its hand parts and cables.
 
 ## Repository map
 
@@ -264,7 +273,8 @@ only its hand parts and cables.
 
 Tools: KiCad 10, Python 3, OSS CAD Suite (Icarus Verilog) for the simulations, and Gowin EDA
 1.9.12.03 to rebuild the bitstream (the committed one is ready to flash). Two cross-check steps
-need the author's earlier, unpublished project and fail without it ([SOURCES.md](SOURCES.md)).
+need the author's earlier project, [MOST25-to-AUDIO](https://github.com/Oleg-mk/MOST25-to-AUDIO),
+cloned next to this one, and a host gcc; without them they fail ([SOURCES.md](SOURCES.md)).
 
 ## Licence
 

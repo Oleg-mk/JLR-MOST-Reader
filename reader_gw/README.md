@@ -356,6 +356,14 @@ findings are fixed and in LOGGING.md.
   switches itself off where it is not).
 - Whether the gateway repeats 0x409 or sends it on a change only. Until a level is heard the
   streams play their start-up levels.
+- Whether JLR mutes with 0x113 Mute, decoded here, or with 0x466 MuteParameters, which
+  usb2most's firmware uses and which is not decoded.
+- 0x22.0x467 MixerLevel, among the XF amplifier's messages in Rhys Morgan's projects, is not
+  decoded; MOST25-to-AUDIO's host puts it on top of each stream's level. If the car sets the
+  prompts' or the chimes' level with it, the reader does not follow.
+- Whether anything sends a Connect, DisConnect or Mute to the gateway's shadow amplifier, 0x22
+  instance 0xA1 at node 0x161: the InstID is not checked, so the reader would take it as the
+  amplifier's.
 - What a real S/PDIF receiver makes of edges on a 1.26 ns grid is for the bench; the line's
   structure and timing are checked here, a receiver's PLL is not modelled.
 - The ring log settles the points above on the first trip (LOGGING.md, "Before the car"). The

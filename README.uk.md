@@ -444,12 +444,12 @@ R02, R04 і R07–R09. Їх треба закрити й тут:
 
 ## Звідки брати
 
-- `C:\Users\geniy\Desktop\MOST25-to-AUDIO`:
+- MOST25-to-AUDIO ([github.com/Oleg-mk/MOST25-to-AUDIO](https://github.com/Oleg-mk/MOST25-to-AUDIO)):
   - код: `listener_gw/rtl`, `listener_gw/sim`;
   - схема і плата: `listener_hw`;
   - модель кільця: `virtual_most_source`;
   - аналіз запису: `tools/capture_analyse.py`;
   - розбір керування на C: `listener_fw/components/mostctl`;
   - документи: `docs/control_commands.md`, `docs/vehicle_survey.md`.
-- `C:\Users\geniy\Desktop\carplay\docs\most-audio-switching-jlr.md` — перемикання джерел на JLR.
-- `C:\Users\geniy\Desktop\MOST-specifications` — специфікації MOST.
+- Перемикання джерел на JLR — з проєктів Rhys Morgan, JLR-HU і SocketMost ([SOURCES.md](SOURCES.md)).
+- Специфікації MOST — документи MOST Cooperation, яких у репозиторії немає ([SOURCES.md](SOURCES.md)).

@@ -11,10 +11,10 @@ repository. The code cites them by section, so a reader with access can check ev
 
 | Source | What was taken from it |
 |---|---|
-| Rhys Morgan, **JLR-HU** ([github.com/rhysmorgan134/JLR-HU](https://github.com/rhysmorgan134/JLR-HU)): `findings/most`, `PiMost.ts`, `Globals.ts` | The node addresses: 0x161 gateway, 0x180 audio unit, 0x186 amplifier, 0x16E screen. The amplifier is FBlock 0x22, instance 0x05, sink 1; it gets DisConnect 0x112, then Connect 0x111 about 100 ms later. The gateway's 0xF0.0x409 Status carries the audio level in byte 2, navigation/phone in byte 8 and parking sensors in byte 10. These byte positions come from one parser and still need a recording to confirm them. |
+| Rhys Morgan, **JLR-HU** ([github.com/rhysmorgan134/JLR-HU](https://github.com/rhysmorgan134/JLR-HU)): `findings/most`, `PiMost.ts`, `Globals.ts` | The node addresses: 0x161 gateway, 0x180 audio unit, 0x186 amplifier, 0x16E screen. The amplifier is FBlock 0x22, instance 0x05, sink 1; it gets DisConnect 0x112, then Connect 0x111 about 100 ms later. The gateway's 0xF0.0x409 Status carries the audio level in byte 2, navigation/phone in byte 8 and parking sensors in byte 10. These byte positions come from one parser and still need a recording to confirm them. With SocketMost and **pymost-client** ([github.com/rhysmorgan134/pymost-client](https://github.com/rhysmorgan134/pymost-client)): the gateway's shadow AudioAmplifier, 0x22 instance 0xA1, and 0x22.0x467 MixerLevel among the XF amplifier's messages. The reader does not tell the shadow apart and does not decode MixerLevel (README, Status). |
 | Rhys Morgan, **SocketMost**, `usb` branch ([github.com/rhysmorgan134/SocketMost](https://github.com/rhysmorgan134/SocketMost)): `JlrAudioControl.ts`, `OS8104A.ts` | Source switching through the gateway, 0xF0.0x405 to 0x408, with AUX as FBlock 0x24. Also that an OS8104 filters control messages by address, which is why this reader decodes them in the FPGA rather than through a MOST chip. |
 | mObridge, *MOST25 DA Series Guide*, pp. 18-19 and the compatibility table | Which of the amplifier's sinks carries what on Jaguar and Land Rover: phone, navigation and voice on sink 2, the parking sensors on sink 3, the chimes on sink 4 (their mono inputs, by maker); and that a Jaguar or Land Rover touchscreen car "must be coded by the dealership if it does not contain the factory MOST25 amplifier". Read from the guide itself. |
-| smartgauges, **usb2most** ([github.com/smartgauges/usb2most](https://github.com/smartgauges/usb2most)), GPL-3.0 | A USB-to-MOST adapter with an OS8104A that has been used in a car. Its v3 schematic is the precedent for the optical front end: the TE FOT header, series resistors, Rext. The TE footprint here was drawn from TE's drawing and checked hole for hole against usb2most's. Its published firmware treats 0x22.0x46D SpeakerLevel as the volume on Freelander 2 and the AUD3 amplifiers. |
+| smartgauges, **usb2most** ([github.com/smartgauges/usb2most](https://github.com/smartgauges/usb2most)), GPL-3.0 | A USB-to-MOST adapter with an OS8104A that has been used in a car. Its v3 schematic is the precedent for the optical front end: the TE FOT header, series resistors, Rext. The TE footprint here was drawn from TE's drawing and checked hole for hole against usb2most's. Its published firmware treats 0x22.0x46D SpeakerLevel as the volume on Freelander 2 and the AUD3 amplifiers, and mutes with 0x22.0x466 MuteParameters, which the reader does not decode. |
 | jaguarforums.com, "XK150 Premium amplifier deception" (XK X150, Sept 2026) | an XKR with Premium Audio, a commercial MOST25 interface feeding an aftermarket DSP over TOSLINK, the factory amplifier left in the ring without its speakers: codes for the amplifier and every speaker that come back after clearing; a forum member with SDD: switching the configuration from premium to standard stops the audio to the amplifier. Read from the page itself. |
 | jaguarforums.com, "MOST issue - Audio Amplifier Module Problem - RESOLVED", page 2 (posts 21-45) | an XF with its amplifier bypassed by a fibre loop: the screen on the logo, no sound; amplifiers without power take the ring down; the 19C164 amplifier's green connector feeds its logic side. Read from the page itself (jaguarforums blocks automated readers). |
 
@@ -47,8 +47,11 @@ The reader decodes both volume messages, and its log is meant to settle the rest
 
 ## The author's earlier project
 
-The reader was cut down from **MOST25-to-AUDIO**, the author's earlier universal MOST25 listener,
-which is not public. The receiver, the DSP engine, the S/PDIF coder and the optical front end with
-its bypass all come from there, re-checked here. Two steps of `check_all.py` (`tools/crosscheck_most_msg.py`
-and `tools/crosscheck_gains.py`) compare this project's decoder and gain tables against that
-project's C code. Without it those two steps fail. Everything else runs from this repository.
+The reader was cut down from **MOST25-to-AUDIO**
+([github.com/Oleg-mk/MOST25-to-AUDIO](https://github.com/Oleg-mk/MOST25-to-AUDIO)), the author's
+earlier universal MOST25 listener. The receiver, the DSP engine, the S/PDIF coder and the optical
+front end with its bypass all come from there, re-checked here. Two steps of `check_all.py`
+(`tools/crosscheck_most_msg.py` and `tools/crosscheck_gains.py`) compare this project's decoder and
+gain tables against that project's C code: clone it next to this repository (or set
+MOST25_TO_AUDIO to its folder) and have a host gcc (on the PATH, or MINGW_GCC). Without them those
+two steps fail. Everything else runs from this repository.
