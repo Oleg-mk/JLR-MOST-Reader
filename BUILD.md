@@ -85,7 +85,7 @@ For one board:
 |---|---|---|---|
 | J1 | MOST optical module (pigtail FOT, 2+0) | TE 1-1394640-1 | not in Mouser's or DigiKey's catalogues, only on marketplaces: look early |
 | J4 | Micro-Fit 3.0, 2 pins, right angle | Molex 43650-0200 | any Molex distributor |
-| J6 | TOSLINK transmitter, T10 housing | Everlight PLT237/T10WH | DigiKey 1080-PLT237/T10WH-ND; LCSC lists it as C17296340, out of stock on 2026-10-04 |
+| J6 | TOSLINK transmitter, T10 housing | Everlight PLT237/T10WH | DigiKey 1080-PLT237/T10WH-ND; LCSC C17296340 |
 | M1 | FPGA module | Sipeed Tang Nano 20K | Sipeed's store |
 | — | 2.54 mm pin headers, 9 pins only: cut two 1x20 strips into pieces 5, 7-8, 20 and 21-22, 25, 35, 40 | — | usually come with the module |
 
@@ -246,8 +246,8 @@ Gowin Programmer exists for macOS, but nobody tried it with this bridge on a Mac
 - **Without the laptop, on the board:** 3V3_SW (module header pin 7, J6's supply) appears once the
   FPGA has loaded the reader's bitstream from flash, any build of it.
   - Which build it is, only `build` in the log or the UserCode through JTAG can tell.
-  - From the ring's first edge to 3V3_SW takes about 290 ms by Gowin's table (builds before
-    2026-10-04 loaded in 2.9 s); the COLD measurement gives the real figure.
+  - From the ring's first edge to 3V3_SW takes about 290 ms by Gowin's table; the COLD
+    measurement gives the real figure.
   - Without a ring the LEDs tell you nothing. In the car, LED0 (lock), LED2 (frames flowing) and
     LED3 (parity) light when all is well.
 

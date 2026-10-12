@@ -21,9 +21,6 @@ Rules the design follows:
    reader plays (the power-off emulation below) is active only while the laptop's logger is
    attached and says so every half second.
 
-This design went through an adversarial review before any of it was built (2026-10-03: the
-trip, the RTL and timing, the link and the PC); its findings are folded in.
-
 ## Transport
 
 - FPGA pin 69 (PIN69_SYS_TX, IOT50[A]) -> BL616 UART RX; pin 70 (PIN70_SYS_RX, IOT44[B]) <-
@@ -37,7 +34,7 @@ trip, the RTL and timing, the link and the PC); its findings are folded in.
   (a parameter; 363 clocks a byte).
 - 3 Mbaud through this bridge has been shown to work (ArthurHeymans/tang_20k_spi_flash). Old
   debugger firmware has a known "baud x 4" bug; Sipeed's fix is a firmware update with
-  BouffaloLabDevCube (the user's job, if the bench test shows it).
+  BouffaloLabDevCube, if the bench test shows it.
 - The bridge's PC-side escape (0x18 0x03 0x0D switches the COM port to the BL616's console):
   the PC tool never sends it, and no command packet it builds can contain it.
 - JTAG programming and an open COM port exclude each other: close the logger to flash.
@@ -125,8 +122,6 @@ last STATUS.
     97      b0..b3 ctrl_decode for stream 3: on, confirmed, muted, own level; b4 0x409 parking
             level (byte 10) heard
     98      X
-
-Bytes 93..97 came with the fourth stream (2026-10-11); everything before them kept its place.
 
 ### SET, T = 53, 26 bytes: each coefficient set ctrl_decode sends
 
@@ -251,10 +246,10 @@ Both are measured on the bench before the trip, without the laptop: DARK = the l
 WAKE low (U4's R6 x C9, 100k x 1u, +/-10 % and the part's own factor), COLD = the first RX
 edge to 3V3_SW rising (FPGA pin 16 drives it high only once the FPGA is in user mode, so its
 rise is the end of the cold start, measurable at J6's supply). Without the
-laptop nothing of this exists, and the gateware behaves as before. (The bitstream was read from
-the flash at Gowin's default 2.5 MHz, 2.9 s to configure: long enough to miss the head unit's
-Connect after every wake. It is read at 25 MHz now, 290 ms by Gowin's UG290; the bench's COLD
-measurement gives the real figure, flash and buck start included.)
+laptop nothing of this exists, and the gateware behaves as before. (Read from the flash at
+Gowin's default 2.5 MHz, the bitstream would take 2.9 s to configure: long enough to miss the
+head unit's Connect after every wake. It is read at 25 MHz, 290 ms by Gowin's UG290; the bench's
+COLD measurement gives the real figure, flash and buck start included.)
 
 ## Commands from the PC
 
@@ -273,30 +268,23 @@ into a failed check) and repeats it until the FPGA's EVENT 21 echoes it (3 tries
 
 ## Timing
 
-The reader closes at 109.5 MHz, 49 ps above the 10 % rule, and placement alone has swung it
-between 102 and 125 MHz. So:
-- ctrl_decode's command 01 pick (pos_pend -> ps -> p, today's worst path) gets a clock of its
-  own first, built and checked alone.
+- ctrl_decode's command 01 pick (pos_pend -> ps -> p, the worst path) gets a clock of its own.
 - The logger takes the command bus from amp_out's registered copy (ok_q, cmd_q, p_q), so
   ctrl_decode's p gets no new load, and every other tap passes one register inside the logger.
 - Each record type keeps what its record needs in registers (a snapshot only where the source
   would move on: the BLOCK header, the STATUS counters and slow taps, the EVENT being sent) and
   serves its record a byte at a time, registered, by the writer's index; the writer adds S and
   X and leaves idle clocks between records; the FIFO's room comes from a registered counter.
-  (The first build kept every record in a shift register of its own: 2300 flip-flops more,
-  89 % of the chip's slices, and the load enables across it were the slowest paths.)
 - The dump and the soak test go into the FIFO only while it holds under 1 KB, so a BLOCK never
   waits behind more than 3.4 ms of line.
 - The control bytes of the BLOCK being collected and of the one going out sit in a small RAM of
   two banks; the STATUS interval values hold still while their record goes out.
-- The capture's 16 blocks are explicit 2048 x 9 arrays (32 made the chip too full to route at
-  speed), their write enable a registered
-  one-hot, address and data registered per group of blocks; the read goes through the BSRAM's
-  output register and registered mux stages.
+- The capture's 16 blocks are explicit 2048 x 9 arrays (32 would make the chip too full to route
+  at speed), their write enable a registered one-hot, address and data registered per group of
+  blocks; the read goes through the BSRAM's output register and registered mux stages.
 - The core's held reset folds into the top's existing reset register (rst_s); the log and
   rx_runlen get the power-up reset alone.
 - Place and route run in Gowin's timing modes (place_option 1, route_option 1).
-- One build after each part, one at a time.
 
 ## The laptop's side
 
@@ -326,7 +314,7 @@ between 102 and 125 MHz. So:
 1. Check the bridge: the debugger firmware, 2025030317 or later, on the module soldered to the
    reader (the last 10 digits of its USB serial number: Device Manager, USB Converter A,
    Details, Parent; macOS: `ioreg -p IOUSB -l -w0`); and on Windows its hardware ID (REV_0500 or
-   REV_0700, from the listener's notes, no outside source).
+   REV_0700, no outside source).
 2. Measure DARK and COLD (above).
 3. The soak test, on the trip laptop on battery, with the trip's cable and port and power
    plan: 2 hours paced at the trip's load (fill with a 250 us gap, about 168 kB/s) with a mark

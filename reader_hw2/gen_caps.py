@@ -785,7 +785,7 @@ outside.
   and a slot along it, open to the inside, lets J1's peg through as the cap slides on.
 - The far cap's block sits over the module's end, {TOP_GAP} mm above the USB-C, and takes the screw.
 - Under the tube each flange runs on into a saddle, {SADDLE_T} mm thick and {SADDLE_L} mm along the tube from
-  its end, with an ear {EAR} mm out on either side (2026-10-11). The tube's floor rests on the two saddles,
+  its end, with an ear {EAR} mm out on either side. The tube's floor rests on the two saddles,
   and four screws through the ears' {EAR_HOLE} mm holes hold the reader: {EAR_HOLE} mm self-tapping (DIN 7981) or
   M4, heads up to {EAR_HEAD} mm, which clear the tube's side. The ring cap's saddle has a {HEAD_HOLE} mm hole
   round the head of the cap's own screw. The saddle rises from the bed with the flange, so the caps

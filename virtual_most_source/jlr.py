@@ -8,7 +8,7 @@ Sources:
   [J1] Rhys Morgan's JLR-HU (findings/most, PiMost.ts, Globals.ts) and SocketMost, usb branch
        (JlrAudioControl.ts, OS8104A.ts), github.com/rhysmorgan134 - node addresses, FBlocks and
        instances, the DisConnect / Connect sequence to the amplifier
-  [J2] MOST25-to-AUDIO docs/control_commands.md section 4 and docs/vehicle_survey.md: the
+  [J2] MOST25-to-AUDIO docs/control_commands.md section 2 and docs/vehicle_survey.md: the
        usb2most firmware decompile (smartgauges) - SpeakerLevel 0x46D as the volume on
        Freelander 2 and on the AUD3 amplifiers, signed dB bytes
   [J3] JLR-HU (as [J1]): the gateway's 0xF0.0x409 Status with the levels in bytes 2, 8 and 10,

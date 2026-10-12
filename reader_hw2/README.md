@@ -1,10 +1,9 @@
 # reader_hw2 - reader v2.0: v1.0's circuit plus two resistors, a board for a tube
 
 v2.0 is v1.0's electronics, plus two series resistors (R43, R44, below) and a smaller C45, on a board that slides
-into a square aluminium tube with two end caps. The user's decisions of 2026-10-05: a 30x30x1.5
-tube (27.0 inside), a board 26.5 mm wide, the module's own USB-C in the far end cap with no
-extension cable; if that cannot be made, a 35x35x2 tube (31 inside) instead. v1.0 (`reader_hw`)
-is not touched.
+into a square aluminium tube with two end caps: a 30x30x1.5 tube (27.0 inside), a board 26.5 mm
+wide, the module's own USB-C in the far end cap with no extension cable. v1.0 (`reader_hw`) is
+not touched.
 
 ```text
 python reader_hw2/gen_reader2.py               the sheet, the libraries, the footprints, the 3D bodies
@@ -30,7 +29,7 @@ its blocks 1-7 into this folder, under the project name `most_reader_v2` with it
 changes what describes the board and adds two resistors:
 
 - the title block (rev 2.0) and two lines of notes;
-- the Tang Nano footprint: nine pads only (2026-10-10), 5, 7, 8, 20 and 21, 22, 25, 35, 40: the
+- the Tang Nano footprint: nine pads only, 5, 7, 8, 20 and 21, 22, 25, 35, 40: the
   seven that carry something and one at each corner they leave bare. The strips are cut to them
   (pieces of one and two pins), and the rows of holes under the module are free for tracks; pins
   1..4 would sit over J4 on the other side anyway. KiCad's parity check asks no pad of an
@@ -39,16 +38,14 @@ changes what describes the board and adds two resistors:
   text says 8 mm, which was never measured) and carries a 3D body of the module;
 - the FOT footprint's two action pins: rings of 2.1 mm instead of 2.4, so that their copper keeps
   0.3 mm from the long edges of the 26.5 mm board (their 1.8 mm holes sit 0.5 mm from them);
-- R43 (33 ohm) and R44 (68 ohm) in series right after U1 (RX_BUF) and U3 (RX_IN), added on
-  2026-10-06 after the EMC review of the board: on two layers those lines run about 40 and 60 mm
-  as 100-130 ohm lines with ~1 ns LVC edges. R44 was 33 ohm at first; a model of RX_IN (the line,
-  U3 at 15-25 ohm, the FPGA pin 6-8 pF) gives 13-31 % overshoot with 33 ohm and at most 8 % with
-  68, the edge 1.0-1.6 ns, which the decoder does not mind. R43 stays 33: RX_BUF also drives the
-  ring's TX through R2, where a fast edge matters more.
-- C45 47u 63V in 8 x 10 instead of 100u in 10 x 10.5 (2026-10-10): with the 10 mm one against J1's
-  action pin its body covered the module's pad 20 one pin nearer J1. The bulk capacitance on
+- R43 (33 ohm) and R44 (68 ohm) in series right after U1 (RX_BUF) and U3 (RX_IN): on two layers
+  those lines run about 40 and 60 mm as 100-130 ohm lines with ~1 ns LVC edges. A model of RX_IN
+  (the line, U3 at 15-25 ohm, the FPGA pin 6-8 pF) gives 13-31 % overshoot with 33 ohm and at
+  most 8 % with 68, the edge 1.0-1.6 ns, which the decoder does not mind. R43 stays 33: RX_BUF
+  also drives the ring's TX through R2, where a fast edge matters more.
+- C45 47u 63V in 8 x 10 instead of 100u in 10 x 10.5. The bulk capacitance on
   VBAT_P drops from 200 to 147 uF, 9.6 times the 15.3 uF of ceramics there (13 before): still
-  enough to damp the harness against them. C45 then moved to the bus by U6.
+  enough to damp the harness against them.
 
 `tools/check_v2_circuit.py` compares both sheets' netlists with R43 and R44 shorted out and C45's
 one change allowed: 58 parts, 63 nets, no other difference.
@@ -90,11 +87,7 @@ through R44 (68 ohm) to the FPGA's pin 27 (module pad 8), 40 mm, and RX_BUF from
 (C1, C43, C45) to U6's input caps and on to C44 and U5; /WAKE runs from U4 to U6, 3V3_SW from pad 7
 to J6 and back along the bottom edge to U3.
 
-**The length.** 84.9 mm. The first placement was 91 (J1 21.2, the module with its HDMI 58, 11.8
-between them); the hand placement grew it to 99, and on 2026-10-06 an empty 4 mm strip was cut
-out (95). On 2026-10-10 the module moved four header pins (10.16 mm) towards J1, three and then
-one more once C45 was 8 mm across, and the far edge, J4 and J6 with it (the edge 10.1 mm, for a
-round tube length). The module's end stays on the far edge, its HDMI 5.65 mm clear of J1.
+**The length.** 84.9 mm. The module's end stays on the far edge, its HDMI 5.65 mm clear of J1.
 
 ## The model: check_fit.py
 
@@ -148,72 +141,26 @@ The model's weak numbers, in the order they matter:
    put into the board, the module on top, soldered to the module first (the board holds them
    square), then underneath.
 
-## Routing, round 1 (2026-10-05, on the user's "розводь плату", two layers)
+## Routing by hand
 
-The board file is the master from here on: the user saved it from KiCad (moved on the page, the
-parts as placed), and `gen_reader2_pcb.py --fresh` would throw the copper away.
+The board file is the master: `gen_reader2_pcb.py --fresh` would throw the copper away. The top is
+the ground plane; underneath:
 
-- Before routing, parts turned or moved so that the pins face their neighbours: U6 by 180 (its
-  input side to L2 and C4, SW and BOOT to L1 and C6), L2 by 180 (L2.1 at D1's cathode), D3 (its
-  cathode towards pad 21), R28, C31, C32 (the 3V3_SW line at J6's VCC pin, SPDIF over it), C43, C84,
-  C6, R31, R4, R5 to U6's new pins; C8 by 180 (its 3V3_AON pad at U4's VCC) and C9 by 180 (REXT and
-  CEXT no longer cross).
-- A ground via beside every SMD ground pad, the top is the ground plane.
-- FreeRouting 2.4.1 for the rest, with no top tracks under the module (x 37..91): 690 mm of copper,
-  all on the bottom but one 6.8 mm hop of RX_IN near U3; 52 stitching vias, the top pour in one
-  piece.
-- The three connections the autorouter left open were drawn by hand (the user's "дороби"):
-  - VBAT_P from L2 to C1: two short hops on the top, over /WAKE (where it drops into U6's EN) and over
-    3V3_AON's arm at x 37.3; between them it runs underneath along the band's top channel over U6,
-    0.5 mm wide. U6's pin 1 now goes to its exposed pad, whose vias take it down, instead of a via
-    in that channel; one stitching via there went too;
-  - 3V3_AON to U4: VCC (pin 8) down to C8's 3V3_AON pad (C8 turned for it), CLR (pin 3) by a 4.5 mm
-    hop on the top, since RX_IN runs under U4 between its pad rows.
-- The user then swapped TP6 and TP10: TP6 (3V3_AON) joins the 3V3_AON track beside it, TP10 (GND)
-  has its own via, RX_BUF goes round TP10's new place.
-- DRC 0 violations, 0 differences from the sheet, 0 unconnected; 719 mm of copper, 17 mm of it on the
-  top in five hops (RX_IN 6.8 mm, VBAT_P 5.9, 3V3_AON 4.5); 97 vias.
-- From here the user moves parts (or sends a screenshot with the changes) and I re-route; the user
-  does not edit the copper.
-- The autorouter's copper is a start for the hand routing, not the end: odd bends and tiny
-  segments remain (`lint_copper` lists 75 such spots).
-
-## Routing by hand (2026-10-06)
-
-After round 1 the user placed the parts in KiCad, and after each move I re-routed what it broke;
-nothing of the autorouter's copper is left. On the way: the cluster under J1 mirrored, the board cut
-from 99 to 95 mm, and three EMC reviews - VBAT_P off the edge, the LDO behind J1, the bulk
-capacitors fed through C4, L1 and L2 apart, the FB divider away from L1's SW pad, R43 and R44. The
-user put R44 across /WAKE: the resistor is that crossing.
-
-- 541 mm of copper, 96 vias. On the top only two jumpers: RX_IN over the C44-C4 link (1.65 mm) and
-  VBAT_P over RX_BUF and /WAKE (1.8 mm); the top pour is one piece.
-- DRC 0, no difference from the sheet, nothing unconnected; no track runs over a pad of its own
-  net without ending in it, no via sits in a pad, no bend is acute.
-- The sheet's test points TP6, TP7, TP9, TP10 are not on the board (the user's choice); the kit
-  measures on C3 (3V3_AON), C63 (5V_SW) and the module's pin 7 (3V3_SW).
-
-## Modernization (2026-10-10)
-
-The user moved parts in KiCad and I re-routed after each save; the user's sketches and moves
-steered it, and two of my own layouts (the far end with D3 standing, the U4 cluster moved) went
-back as worse. On the way:
-
-- the power section re-placed: C6 between U6 and L1, the SW node 3.7 mm (4.4), C4 straight onto
-  U6's VIN and exposed pad; C45 8 mm across and moved to the bus by U6; C44 0.9 mm towards J1;
-- the module four pins towards J1, the board 84.9 mm, J4 and J6 with the far edge;
+- the power section: C6 between U6 and L1, the SW node 3.7 mm, C4 straight onto U6's VIN and
+  exposed pad; C45 8 mm across, on the bus by U6;
 - the module's header cut to nine pins; the freed rows carry RX_IN and 3V3_SW;
-- the far end re-placed by the user: D3 lying, SPDIF between its pads; 3V3_SW from pin 7 between
-  F1's and R28's pads to C31, C32 and J6, and from J6 down to the line under the module;
-- /WAKE and RX_BUF straight across the place C45 left, from the top edge to their runs at
-  x 25.5 and 25.05.
+- the far end: D3 lying, SPDIF between its pads; 3V3_SW from pin 7 between F1's and R28's pads to
+  C31, C32 and J6, and from J6 down to the line under the module;
+- /WAKE and RX_BUF straight across, from the top edge to their runs at x 25.5 and 25.05.
 
-496 mm of copper (541), 75 vias (96); on the top still only the two jumpers, RX_IN over the
-C44 link (1.65 mm) and VBAT_P over RX_BUF and /WAKE (1.75 mm); the top pour in one piece. DRC 0,
-no difference from the sheet, nothing unconnected; the narrowest new gaps are 0.18 mm (/WAKE by
-J1.1's square pad) and 0.19 mm (RX_IN by C82). The fast lines kept their series resistors: their
-value depends on the line's impedance, which did not change, not on its length (RX_IN 53 to
-40 mm, RX_BUF's branches 1 to 4 mm longer).
+496 mm of copper, 75 vias; on the top only two jumpers, RX_IN over the C44 link (1.65 mm) and
+VBAT_P over RX_BUF and /WAKE (1.75 mm); the top pour in one piece. DRC 0, no difference from the
+sheet, nothing unconnected; no track runs over a pad of its own net without ending in it, no via
+sits in a pad, no bend is acute. The series resistors' value depends on the line's impedance, not
+on its length.
+
+The sheet's test points TP6, TP7, TP9, TP10 are not on the board; the kit measures on C3
+(3V3_AON), C63 (5V_SW) and the module's pin 7 (3V3_SW).
 
 ## The manufacturing package and the kit
 
@@ -239,12 +186,12 @@ README.
   part underneath (8.5 mm into the tube); it stays 2.0 mm off J1's soldered action pins, and a slot
   along it, open to the inside, lets J1's peg through while the cap slides on under the board.
 - The far cap's block sits over the module's end, 0.5 mm above the USB-C.
-- Under the tube each flange runs on into a saddle (2026-10-11, the user's idea of a mounting tab):
+- Under the tube each flange runs on into a saddle:
   3.0 mm thick, 9.0 mm along the tube from its end, an ear 10.0 mm out on either side with a 4.2 mm
   hole. The tube's floor rests on the two saddles, and four screws through the ears hold the reader
   in the car: 4.2 mm self-tapping (DIN 7981) or M4, a head up to 8.2 mm clears the tube's side. The
   ring cap's saddle has a 5.0 mm hole round the head of the cap's own screw.
-  - A tab past the tube's end, the first sketch, would lie below the bed with the cap printed outer
+  - A tab past the tube's end would lie below the bed with the cap printed outer
     face down, and would need the cap on its side with supports under both blocks. At the far end it
     would also pass about 1 mm under a TOSLINK plug (J6's port axis 8.6 mm above the tube's bottom,
     a plug about 10 mm tall). The saddle rises from the bed with the flange: no supports, the ear
@@ -252,10 +199,9 @@ README.
 - Each cap takes a self-tapping M2 screw through the tube's wall into its block, the hole in the
   block drilled at assembly: through the floor at the ring end, through the top at the far end.
 - The tube is bonded to ground by J4 through the far cap's screw: an M2 ring terminal and a
-  serrated washer under its head, a 3-5 cm wire to the GND wire of J4's harness by the plug
-  (2026-10-06, the user's choice). The board has no room for a bond there: the module's header
-  rows run 2.2 mm from both long edges, J4 and J6 fill the end; the tube raw, or its anodizing
-  scraped off under the washer.
+  serrated washer under its head, a 3-5 cm wire to the GND wire of J4's harness by the plug. The
+  board has no room for a bond there: the module's header rows run 2.2 mm from both long edges,
+  J4 and J6 fill the end; the tube raw, or its anodizing scraped off under the washer.
 - The script fails, writing nothing, when a wall comes out thinner, an opening closer to its part,
   a block onto a part or a lead, a saddle hole nearer an edge than 1.2 mm, or the mesh is open.
 - `make_views.py` puts both caps and the tube on a copy of the board, point by point from the same

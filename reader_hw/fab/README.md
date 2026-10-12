@@ -46,18 +46,17 @@ again after any change to the board: `check_all.py` fails while this folder does
    ENIG, green mask with white silkscreen, and the number of boards (10 to start).
 2. **Assembly.** Top side, "Confirm parts placement" on. No part is consigned.
 3. **BOM and CPL.** Upload `most_reader-bom-jlcpcb.csv` and `most_reader-cpl-jlcpcb.csv`:
-   28 lines, 28 LCSC parts, chosen for the listener board on 2026-10-01
-   (C32's 1u, C28323, on 2026-10-04).
+   28 lines, 28 LCSC parts.
    JLCPCB shows the stock on upload; a part it holds too few of is bought from LCSC on the
-   same BOM page (F1, C2925010, was the one it lacked then).
+   same BOM page.
 4. **Placement preview.** Before paying, check pin 1 of U1, U3 (SOT-353), U4 (VSSOP-8),
    U5 (WSON-6) and U6 (HSOP-8), and the polarity of D1..D3, C44, C45 and C63.
-   - The rotations were read off each chosen part's LCSC footprint (2026-10-03).
+   - The rotations were read off each chosen part's LCSC footprint.
    - U4 and the electrolytics C44, C45, C63 are the ones a generic table gets wrong: U4's pin 1
      dot goes to the board's pin 1 mark, the + of each electrolytic to the side of its silk +.
 5. **By hand, after delivery.** These are not in JLCPCB's files. Their holes follow these exact
    parts, so a look-alike may not fit:
    - J1 (1-1394640-1): TE 1-1394640-1, the MOST pigtail FOT unit
    - J4 (VBAT_IN): Molex 43650-0200, Micro-Fit 3.0, right angle
-   - J6 (PLT237/T10WH): Everlight PLT237/T10WH, T10 housing (DigiKey 1080-PLT237/T10WH-ND; LCSC C17296340 had none on 2026-10-04; the PLT133/T10W the board was drawn for is out of production)
+   - J6 (PLT237/T10WH): Everlight PLT237/T10WH, T10 housing (DigiKey 1080-PLT237/T10WH-ND; LCSC C17296340; the PLT133/T10W the board was drawn for is out of production)
    - M1 (Tang Nano 20K): Sipeed Tang Nano 20K, on its own pin headers

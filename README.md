@@ -17,7 +17,7 @@ and will go into the project: open an issue or a pull request, or write in the f
 
 ![The v2.0 board in its 30x30 mm aluminium tube, cut open](reader_hw2/views/reader_v2_in_tube.png)
 
-Ukrainian: [README.uk.md](README.uk.md) has the decisions, the reasoning and the full project journal.
+Ukrainian: [README.uk.md](README.uk.md).
 
 ## Volume from the car's own controls, with no loss of quality
 
@@ -143,7 +143,7 @@ That is the price of not emulating it, and it decides how you use the output.
 
 ## Status: what is proved and what is not
 
-**Verified in models** (run `python check_all.py`; all 27 steps pass on the author's machine):
+**Verified in models** (run `python check_all.py`; every step passes):
 
 - The gateware, in Icarus Verilog against bit-exact Python models:
   - the control decoder, through five scenarios and 400 random blocks;
@@ -245,19 +245,6 @@ Ukrainian are the kit's: [reader_hw2/kit/README.md](reader_hw2/kit/README.md),
 The board and its design choices are described in [reader_hw2/README.md](reader_hw2/README.md).
 
 ![End cap drawing](reader_hw2/caps/caps_en.svg)
-
-## Rough cost
-
-| Item | Approx. USD | Basis |
-|---|---|---|
-| JLCPCB: 5 boards, 2 of them assembled | 60-100, plus shipping and tax | their price page, seen 2026-10-12 (updated 2026-09-09): Economic PCBA (one side, as here): $8.18 setup, $1.53 stencil and $3.07 per extended part type (about 15 here), plus the parts and the ENIG boards |
-| Sipeed Tang Nano 20K | 25-35 | $25 at launch; resellers $27-36 |
-| TE 1-1394640-1 (J1) | about 22, plus shipping | one eBay listing, seen 2026-10-12; no distributor stocks it |
-| T10 transmitter, Micro-Fit pair, tube, printed caps, screws | 15-25 | rough |
-| MOST loop-in adapter, TOSLINK cable | 25-60 | rough; depends on the node you tap |
-
-The first reader comes to roughly $150-245, plus shipping and tax. The second board from the same
-order costs only its hand parts and cables.
 
 ## Repository map
 

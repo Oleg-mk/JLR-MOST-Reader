@@ -41,13 +41,13 @@ The transmitter is Everlight's PLT237/T10WH (DPL-0000256 Rev.1, 2021): 2.7 to 5.
 +85 C, 25 Mbps, the pins and the T10 housing of the PLT133/T10W the board was drawn for (pegs
 1.10 on 5.08, 2.62 typ in front of the pins; 8.66 +-0.40 from the pins to the front foot: the
 footprint's 2.63 and 8.76 are inside that). The PLT133/T10W is out of production (Everlight's last
-time buy 2019-09-30, Rutronik; DigiKey has none and takes no backorder, 2026-10-04). The listener
+time buy 2019-09-30, Rutronik). The listener
 went to Cliff's ORJ-5/OTJ-5 because its receiver went too; this board has none, and the Cliff
 part would have meant new pegs over the copper round J6 and -20 C at the cold end.
 
 C32 on 3V3_SW is 1u, not 10u: when the FPGA starts, pin 16 goes from its weak pull-up to a full
 drive and charges the rail's capacitance at the pin's short-circuit current, about 0.18 A (the
-IBIS model), out of the module's 3.3 V that also feeds VCCX and the SDRAM. 10u made that a
+IBIS model), out of the module's 3.3 V that also feeds VCCX and the SDRAM. 10u would make that a
 0.3 ms pulse, 1u makes it 30 us; C31 (100n, within the data sheet's 7 mm) is the transmitter's
 own bypass.
 
@@ -78,10 +78,8 @@ python tools/check_board.py          DRC with the parity check: no violation, no
                                      has begun
 ```
 
-The layout is this board's own, 77.54 x 55.55 mm, not the listener's cut down. The user re-placed
-it several times on 2026-10-03 (12:22; 13:33 with three more ceramics; 14:03 with the cap row, U5,
-C1, L2, D1 and M1 moved left, and everything right of M1 following M1 by 2.464 mm; 15:46 and
-17:37, the FOT's parts and the knot aligned, C83 to the input) and cut 6.45 mm off the top; from then on the board is the master and `PLACE` is read back off it. J1 sits on the left edge,
+The layout is this board's own, 77.54 x 55.55 mm, not the listener's cut down. The board is the
+master and `PLACE` is read back off it. J1 sits on the left edge,
 its optical face past the edge; J4 below it with its face flush with the edge, so the car's two
 cables, fibre and power, leave through one face. The FOT's parts sit in rows on J1's pins
 (TXVCC on pin 3 with RGAIN under it, RXVCC on pin 5 with C10 and C18), R2 over U1 and U3,
@@ -92,22 +90,20 @@ the right are D3 with C64, C85 and C63 at M1's 5 V pin, R28 and J6 on the right 
 buck with C45 under it. The module's 3D view shows only its pin headers (soldered in, no
 sockets).
 
-The user's ceramics, each 100 nF: C83 (100 V) across the input behind F1, beside D2; C84
+Three ceramics, each 100 nF: C83 (100 V) across the input behind F1, beside D2; C84
 (100 V) on the VBAT_P riser between C45 and the buck, across the electrolytic; C85 on 5V_SW
 beside C64. TP10 is a second ground test point beside TP6.
 
 3V3_SW, the supply of U3 and J6, comes from module pin 7, FPGA pin 16 (LED1) held high by the
 gateware: U3 takes microamps and J6 5.5 mA typical, 10 at most. The module's own 3.3 V pins (19,
-36) sit at its bottom, and their line up to U3 and J6 had to cross /WAKE with a jumper; pin 7
-sits above /WAKE, so nothing crosses it (the user's idea). Pin 16 is in bank 6 with the LEDs
-alone, away from the crystal's bank and the two serdes pins'. LED1 stays dark.
+36) sit at its bottom, and their line up to U3 and J6 would have to cross /WAKE with a jumper;
+pin 7 sits above /WAKE, so nothing crosses it. Pin 16 is in bank 6 with the LEDs alone, away
+from the crystal's bank and the two serdes pins'. LED1 stays dark.
 
 The routing follows the listener's scheme: the top carries every signal and supply, the bottom
 is one ground plane, the top's ground pour is stitched to it every 6 mm and every SMD ground
 pad has its own via. There is no jumper: the bottom is one unbroken ground plane with nothing
-but vias in it. The third round followed the user's sketch (the RXVCC row in one line, RX_BUF
-straight from R2 down to U1, 3V3_AON up a channel under R1 and R7, U4's ground onto C8's via)
-and took two of three jumpers away; 3V3_SW from pin 7 took the last, /WAKE's.
+but vias in it.
 No signal track comes within 3.5 mm of a mounting hole's centre, so an M3 head, washer or
 standoff sits on ground copper only: TXD bends away from H1 and S/PDIF goes round H2.
 
@@ -148,14 +144,14 @@ it.
 `make_fab.py` writes `fab/` from the board and the sheet, as the listener's does: the Gerbers and
 both drill files with a zip for the board house, the BOM and the pick-and-place, the same two in
 JLCPCB's format for an order with the SMD parts assembled (every part with the LCSC number
-chosen for the listener on 2026-10-01, the reader's parts among them, but C32's 1u 0805, C28323,
-chosen on 2026-10-04; none is consigned), and a README with the board's numbers and the order steps. Every date in the files
+chosen for the listener, the reader's parts among them, but C32's 1u 0805, C28323; none is
+consigned), and a README with the board's numbers and the order steps. Every date in the files
 is the board's title-block date, so the package is the same on every run, and `check_all.py`
 fails when it no longer matches the board or the commit. By hand after delivery: J1 (the FOT
 unit), J4 (Micro-Fit), J6 (TOSLINK, PLT237/T10WH: DigiKey 1080-PLT237/T10WH-ND; LCSC lists it as
-C17296340, none in stock on 2026-10-04) and M1 (the Tang Nano, on its own pin headers). The CPL's rotations were read off each
+C17296340) and M1 (the Tang Nano, on its own pin headers). The CPL's rotations were read off each
 chosen part's LCSC footprint: the community table's 180 for the electrolytics and for VSSOP-8 would
-have put C44, C45 and C63 in reversed and U4 across its pads (the pre-order review of 2026-10-03).
+have put C44, C45 and C63 in reversed and U4 across its pads.
 
 ```text
 python reader_hw/make_fab.py
@@ -164,6 +160,4 @@ python reader_hw/make_fab.py
 ## Next
 
 The first boards: bring-up on the bench (the supplies, then the bitstream over the module's own
-USB-C, SRAM first, then flash), then the car (the ring's bypass first, then the reader). Before
-the first car trip the gateware should get a capture and log over the module's USB-UART: the
-LEDs are its only diagnostics today.
+USB-C, SRAM first, then flash), then the car (the ring's bypass first, then the reader).

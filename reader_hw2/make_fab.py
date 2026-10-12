@@ -151,16 +151,15 @@ after any change to the board: `check_all.py` fails while this folder does not m
    mask with white silkscreen, and the number of boards (10 to start).
 2. **Assembly.** Bottom side, "Confirm parts placement" on. No part is consigned.
 3. **BOM and CPL.** Upload `{NAME}-bom-jlcpcb.csv` and `{NAME}-cpl-jlcpcb.csv`: {jlc['lines']} lines,
-   {jlc['codes']} LCSC parts, {jlc['parts']} parts a board, all on the bottom. The parts are v1.0's
-   (chosen on 2026-10-01 for the listener board, C32's 1u on 2026-10-04), R44's 68 ohm, C27592, and
-   C45's 47u 63V 8 x 10, C165628 (2026-10-10).
+   {jlc['codes']} LCSC parts, {jlc['parts']} parts a board, all on the bottom. The parts are v1.0's, R44's 68 ohm, C27592,
+   and C45's 47u 63V 8 x 10, C165628.
    JLCPCB shows the stock on upload; a part it holds too few of is bought from LCSC on the same
    BOM page.
 4. **Placement preview.** JLCPCB shows the bottom seen from below. Before paying, check pin 1 of
    U1, U3 (SOT-353), U4 (VSSOP-8), U5 (WSON-6) and U6 (HSOP-8), and the polarity of D1..D3, C44,
    C45 and C63.
    - A bottom part's rotation is 180 minus KiCad's plus the part's own turn read off its LCSC
-     footprint (2026-10-03): 180 for the SOT-353s, 270 for U4 and U6, 0 for the rest.
+     footprint: 180 for the SOT-353s, 270 for U4 and U6, 0 for the rest.
    - U4 and the electrolytics C44, C45, C63 are the ones a generic table gets wrong: U4's pin 1
      dot goes to the board's pin 1 mark, the + of each electrolytic to the side of its silk +.
 5. **By hand, after delivery.** These are not in JLCPCB's files. Their holes follow these exact

@@ -62,8 +62,7 @@ answer - a request's device is its target, an answer's its source.
 | 0xF0 0x409, Status | byte 2 the audio level, byte 8 navigation and phone, byte 10 the parking sensors, raw |
 
 The sinks are JLR's as mObridge's MOST25 DA guide (pp. 18-19) lists them for Jaguar and Land
-Rover: 1 the main source, 2 phone, navigation and voice, 3 the parking sensors, 4 the chimes. A
-reader that played only sinks 1..3 (until 2026-10-11) would have lost the chimes.
+Rover: 1 the main source, 2 phone, navigation and voice, 3 the parking sensors, 4 the chimes.
 
 Formats (audit R09): from a SinkInfo the full tuple - PCM only, 2 or 3 bytes a sample, 1 or 2
 channels, the list exactly Resolution x AudioChannels long. A Connect carries the list alone;
@@ -76,11 +75,11 @@ A stream's gain, as the host chose it, with streams 2 and 3 added: muted, 0; its
 in dB; else the 0x409 level of its kind - stream 2 (the parking sensors) byte 10, then byte 8,
 stream 1 byte 8; else the volume - SpeakerLevel to sink 1, else 0x409 byte 2 - but never for
 stream 3, the chimes (no volume message is on record for them, and a chime must not vanish with
-the volume turned down); else the stream's start-up level. The start-up levels are the user's
-decision of 2026-10-03: the main source at -12 dB (a quarter of full amplitude, "a third or
-less"), the others at figures of their own (-6 dB until set otherwise, and for good for the
-chimes unless a SpeakerLevel names sink 4), all four in `sim/gain_tables.py`, and the first
-coefficient set after reset carries them, so a Connect is heard before any level message.
+the volume turned down); else the stream's start-up level. The start-up levels: the main source
+at -12 dB (a quarter of full amplitude), the others at figures of their own (-6 dB until set
+otherwise, and for good for the chimes unless a SpeakerLevel names sink 4), all four in
+`sim/gain_tables.py`, and the first coefficient set after reset carries them, so a Connect is
+heard before any level message.
 `run_ctrl.py` asks these rules of the model directly before it holds the RTL to the model.
 Positions survive a lost lock (R06: a gap must not silence the one output); a ring restart takes
 the FPGA's supply with it and so clears everything.
@@ -106,8 +105,8 @@ The nominal 48 kHz period counts for the first frame only. The frame's UI 0 fall
 896, so the train's frame start (phase 0) comes 128 ticks after it, 2.6 us after the frame
 before has completed, when its bytes are long collected. On the first frame edge after a lock
 the train is pinned there; after that each edge's error against the tick of that phase is taken
-out by 1/16 with its fraction (taken to whole samples it left a dead zone the offset could sit
-anywhere in). An error over 128 samples means the train is not tracking (the ring jumped): it
+out by 1/16 with its fraction (taken to whole samples it would leave a dead zone the offset could
+sit anywhere in). An error over 128 samples means the train is not tracking (the ring jumped): it
 is pinned anew, and the period's history starts anew with it, so the jump never sits inside a
 span. The train runs from a frame start once two edges in a row were within 4 samples with
 the period measured (the loop's step is then a quarter sample, so the first frame out is as
@@ -119,7 +118,7 @@ leaves is never a frame with a jump in it.
 `amp_out` is MOST25-to-AUDIO's with its two clock domains folded into one: the commands and the
 frame bytes came in clk_s, the engine and the outputs ran in clk_r, the Si514's 1024 Fs. Here
 everything is one clock, the engine starts on the tick of phase 0, the coefficient banks switch
-between two runs as before and take a set only whole (the audit's tags), and `spdif_tx` draws
+between two runs as before and take a set only whole (by its tag), and `spdif_tx` draws
 its half-cells from the ticks: one opens on every eighth. No injection, no I2S. `spdif_tx`
 puts the line out as 8 samples a clock (`word`, for OSER8 as `fs_fine` does it): the tick
 names the sample its half-cell opens on, and the edge lands there. The coding is unchanged
@@ -141,8 +140,8 @@ three FPGA pins and nothing else:
 The two signals are shared on the module only with its empty LCD connector. Pin 28, the other
 half of pin 27's IOB pair, is left unwired; pin 42's other half has no pin on the QN88 package.
 Pin 16 is a supply: J6 (PLT237/T10WH) takes 5.5 mA typical, 10 at most, U3 microamps; the module's own 3.3 V
-pins sit at its bottom, and their line up to U3 and J6 had to cross /WAKE with a jumper on the
-board. Bank 6 carries only the LEDs besides it, away from the crystal's bank 7 and the serdes
+pins sit at its bottom, and their line up to U3 and J6 would have to cross /WAKE with a jumper on
+the board. Bank 6 carries only the LEDs besides it, away from the crystal's bank 7 and the serdes
 pins' banks 5 and 4. The rest is the module's own: the 27 MHz crystal on pin 4, five LEDs on
 pins 15, 17..20 (their header pins are not wired) and the audio amplifier's enable on pin 51,
 held low. 5 V comes in on header pin 21 through D3, ground on 20, 22 and 35; the module's
@@ -160,8 +159,8 @@ messages decoded (85 ms flash), 5 a block dropped (flash) or an engine overrun (
 LED 1 is dark: its pin is 3V3_SW.
 
 Two resets: rst_p, power-up only, for the log and rx_runlen; rst_s for the core, power-up or the
-log's hold (the supply's loss emulated while the laptop is attached, LOGGING.md), in the same
-registered net as before.
+log's hold (the supply's loss emulated while the laptop is attached, LOGGING.md), in one
+registered net.
 
 Build: `cd board && python build.py` writes `build_id.vh` (the commit, bit 31 set for uncommitted
 changes; the log sends it in every STATUS), runs `gw_sh build.tcl` and then `check_timing.py`,
@@ -170,14 +169,13 @@ run in Gowin's timing modes (`place_option 1`, `route_option 1`). gw_sh now and 
 once with nothing written; build.py runs it again then (twice at most).
 
 `python sweep_ids.py` builds the same gateware eight times with other build IDs. The ID is a
-constant in the STATUS record and moves the placement: on 2026-10-04 one gateware kept 1.9 %
-with one ID and 12 % with another. The sweep shows that spread and fails only on a build that
-misses the clock; the 10 % is required of the bitstream that ships (build.py, make_kit.py
---fpga).
+constant in the STATUS record and moves the placement: one gateware kept 1.9 % with one ID and
+12 % with another. The sweep shows that spread and fails only on a build that misses the clock;
+the 10 % is required of the bitstream that ships (build.py, make_kit.py --fpga).
 
 Cold start: the FPGA configures itself from the module's SPI flash every time the ring wakes it
 (5V_SW comes with WAKE). Gowin reads the flash one bit a clock at 2.5 MHz by default: the
-7.26 Mbit bitstream took 2.9 s, long enough to miss the head unit's Connect after every wake.
+7.26 Mbit bitstream would take 2.9 s, long enough to miss the head unit's Connect after every wake.
 `build.tcl` sets the loading rate to 25 MHz (`-loading_rate 250/10`): 290 ms (Gowin UG290,
 Table 3-3; the limit is 66.6 MHz, 25 is well inside it). Compression would halve it again (58 %
 of the bitstream is zero bytes), but this gw_sh accepts `-bit_compress` and still writes an
@@ -186,9 +184,9 @@ measurement (LOGGING.md) gives the real figure, the buck's start and the flash i
 
 ### Timing on the chip
 
-The first build of this top (2026-10-03) reached 60 MHz against 99: 621 paths missed, all of
-them in the reader's own logic, which the simulations cannot see. Each was taken apart into
-registered steps, the module doing exactly what it did, and is now:
+The paths that miss 99 MHz in one clock, all of them in the reader's own logic, which the
+simulations cannot see, are taken apart into registered steps, the module doing exactly what
+it did:
 
 | Where | What missed | What it does now |
 |---|---|---|
@@ -198,27 +196,15 @@ registered steps, the module doing exactly what it did, and is now:
 | `nco_frame` | the period (history read, subtract, range check) and the frame edge's error (subtract, wrap, correction into the 56-bit train) in the edge's clock; the train's own compare of the next tick against the word counter | the edge's result lands 3 clocks later (the correction is relative, so the train ends up where it did); the period and the error's subtract start a clock early from `rx_framer`'s `fe_next` (the edge's time, a clock before `fe_valid` brings it); the train keeps the time to its next tick as a register, so "a tick is due" is a sign bit; the adders' operands are set up a clock ahead |
 | `rx_framer` | one path just under the margin | a compare of two registers |
 
-Result: clk_s 125.2 MHz against 99 (26.5 % margin) at first. Pin 16 as a supply and five LEDs
-moved the placement, and the same design came out between 102 and 125 MHz from build to build:
-paths near 9 ns that placement alone pushes over or under the 10 % rule. Four more were taken
-apart for that (the S/PDIF coder works out the next half-cell a clock ahead; the edge's take of
-the period is the last choice of each register it sets; the history's RAM output goes through a
+Four more paths near 9 ns, which placement alone pushes over or under the 10 % rule, are taken
+apart (the S/PDIF coder works out the next half-cell a clock ahead; the edge's take of the
+period is the last choice of each register it sets; the history's RAM output goes through a
 flip-flop before the subtract; the history range register is copied by synthesis), each exactly
-equal in what it does. Now 109.5 MHz, 10.6 % margin: the rule holds, by a little; the margin
-moves with placement. Setup and hold met everywhere; the one warning left is PR1014 (the
+equal in what it does. Setup and hold met everywhere; the one warning left is PR1014 (the
 crystal reaches the PLL on general routing), as on the listener.
-The chip was mostly free then: logic 26 %, registers 30 %, 7 of 46 BSRAM, 3 of 24 DSP.
 
-With the ring log (2026-10-04) it is 53 % logic, 55 % registers, 82 % of the slices, 28 of 46
-BSRAM (16 of them the capture), 4 of 24 DSP. Getting there took four builds: the log's first form
-(each record in a shift register of its own, a 32-block capture) filled 89 % of the slices and
-left 99.1 MHz; the records served from where their data already sits, a two-clock byte pick, an
-event queue in LUT RAM, a 16-block capture and the taps kept apart from amp_out's copies brought
-it to 99.9 MHz with the paths all routing, no logic; Gowin's timing modes for placement and
-routing then gave 110.8 MHz, 12.0 % margin - for that one build ID: rebuilt from the commit
-(another ID) the same gateware kept 1.9 %. Eight IDs (`board/sweep_ids.py`) then found the
-paths that placement can make slow, each cut so that what goes out stays the same but for the
-byte activity's interval, now a clock earlier at both ends:
+Eight IDs (`board/sweep_ids.py`) found the paths that placement can make slow, each cut so that
+what goes out stays the same but for the byte activity's interval, a clock earlier at both ends:
 - the byte activity's compare a clock before the mask bit;
 - the position trigger's zero test kept beside its counter (pos_z);
 - the peaks compared against all eight at once;
@@ -230,20 +216,17 @@ byte activity's interval, now a clock earlier at both ends:
 - ctrl_decode's channel + 1 for a position added at E2 (pdp), the SinkInfo/Connect pick alone
   left at E3 (pd holds from E1 to the next telegram);
 - rx_framer's input stages kept apart from rx_classify's registers, which they equal bit for bit
-  and which synthesis had merged them into (the framer's decode was fed from the classifier's
+  and which synthesis would merge them into (the framer's decode then fed from the classifier's
   corner).
-The byte activity also got a seen mask (a byte counts from its second write after power-up): on
+The byte activity also has a seen mask (a byte counts from its second write after power-up): on
 the chip prevb starts at 0, in a simulation X, and without it the first STATUS after power-up
-marked standing bytes the simulation could not show. Every build of the day met the clock (the
-slowest 99.7 MHz), but over eight IDs the margin still spreads (0.7 to 20.9 % in the last full
-sweep): the chip is 82 % full and placement decides which path comes last. So the 10 % is checked
-on the build that ships, and the sweep only shows the spread. Before any of that, ctrl_decode's
-command-01 pick
-(pos_pend -> ps -> pos_b -> p, the worst path) got a clock of its own (p01_q, a clock ahead of
-the command; checked by run_ctrl.py and run_e2e.py): 121.6 MHz, 22.9 %, without the log.
-With the fourth stream (2026-10-11: sink 4, the chimes, and the parking level) the chip is 57 %
-logic, 59 % registers, 86 % of the slices, 28 of 46 BSRAM, 4 of 24 DSP; a trial build from the
-uncommitted tree (ID 882D129D) gave 117.0 MHz, 18.2 %. The figure that counts is the build that
+would mark standing bytes the simulation cannot show. Over eight IDs the margin still spreads
+(0.7 to 20.9 % in the last full sweep): the chip is 82 % full and placement decides which path
+comes last. So the 10 % is checked on the build that ships, and the sweep only shows the spread.
+ctrl_decode's command-01 pick (pos_pend -> ps -> pos_b -> p, the worst path) has a clock of its
+own (p01_q, a clock ahead of the command; checked by run_ctrl.py and run_e2e.py).
+The chip is 57 % logic, 59 % registers, 86 % of the slices, 28 of 46 BSRAM (16 of them the
+capture), 4 of 24 DSP; a build gave 117.0 MHz, 18.2 %. The figure that counts is the build that
 ships, in `kit/2_fpga/BUILD.txt`.
 The checks that it still does the same: `run_ctrl.py`, `run_nco.py` (with three corners added
 that put the train's tick at UI 0 next to the edge's clock), `run_amp.py`, `run_e2e.py`; the
@@ -337,9 +320,6 @@ attached and a soak-test burst; the ring dark for 1.5 ms with the laptop attache
 everything learnt anew after the wake); two frames lost after the lock held (the unlock capture);
 the module powered with the ring asleep (the core held from DARK, the first edge starts COLD,
 nothing decoded before it ends). `tools/test_log_format.py` runs the parser over damaged streams.
-The design was reviewed before it was built and the code after it (2026-10-03/04, adversarial
-reviews of the trip's needs, the RTL and timing, the link and the PC side, product safety); the
-findings are fixed and in LOGGING.md.
 
 ## Not proved - what only a recording of the car settles
 
