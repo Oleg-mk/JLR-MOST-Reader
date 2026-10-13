@@ -95,17 +95,25 @@ The part that stays in the ring is small and separate from everything else:
 ring in -> FOT receiver -> R1 -> U1 (one 74LVC1G34 buffer) -> R2 -> FOT transmitter -> ring out
 ```
 
-- **The bypass:** U1 and the FOT run from their own 3.3 V regulator (TPS7B8133). It is fed
-  straight from KL30 and is always on, drawing tens of microamps with the car parked. Nothing
+- **The bypass:** U1 and the FOT run from their own 3.3 V regulator (TPS7B8133). It is fed from
+  KL30 through the board's 12 V input (the fuse F1, the diode D1, the filter L2) and is always on,
+  drawing tens of microamps with the car parked (the design figure; not yet measured). Nothing
   switches this path. It drives the transmitter the same way a powered OS8104 node in all-bypass
   does after reset.
-- **Everything else is off that path:** the FPGA module, its 5 V buck converter (switched on by
-  light arriving on the ring), the gateware and the TOSLINK output. If any of them fails, the ring
-  still passes light. The FPGA's input is isolated by a 74LVC1G125 with Ioff, so an unpowered
-  module doesn't load the line.
-- **When the ring opens:** if the bypass loses its permanent supply (a blown fuse, KL30
-  disconnected), or one of the few parts on its path fails: J1's FOT, R1, U1, R2 or their
-  regulator. The same is true of every factory MOST node. Fit your own fuse where you tap KL30.
+- **Everything else is off the light path:** the FPGA module, its 5 V buck converter (switched on
+  by light arriving on the ring), the gateware and the TOSLINK output. If the module, the gateware
+  or the output fails, the ring still passes light. The FPGA's input is isolated by a 74LVC1G125
+  with Ioff, so an unpowered module doesn't load the line.
+- **When the ring opens:**
+  - the bypass loses its supply: KL30 disconnected, or your fuse or F1 blown;
+  - a part on the board's 12 V input fails: the bypass shares that input with the buck, so a
+    short there (the buck's input, a capacitor on the 12 V side, D2) blows F1, and an open F1, D1
+    or L2 cuts the supply;
+  - a part on the light path fails: J1's FOT, R1, U1, R2 (and R43 on v2.0), or the 3.3 V
+    regulator.
+
+  The same is true of every factory MOST node that loses its supply. Fit your own fuse where you
+  tap KL30.
 - **Nothing new on the network:** the reader sends nothing on MOST and has no address, so the car's
   network sees no new node.
 - **Fully reversible:** unplug the loop-in adapter and the car is back to stock.
@@ -245,6 +253,20 @@ Ukrainian are the kit's: [reader_hw2/kit/README.md](reader_hw2/kit/README.md),
 The board and its design choices are described in [reader_hw2/README.md](reader_hw2/README.md).
 
 ![End cap drawing](reader_hw2/caps/caps_en.svg)
+
+## Rough cost
+
+| Item | Approx. USD | Basis |
+|---|---|---|
+| JLCPCB: 5 boards, 2 of them assembled | 60-100, plus shipping and tax | their price page, seen 2026-10-12 (updated 2026-09-09): Economic PCBA (one side, as here): $8.18 setup, $1.53 stencil and $3.07 per extended part type (about 15 here), plus the parts and the ENIG boards |
+| Sipeed Tang Nano 20K | 25-35 | $25 at launch; resellers $27-36 |
+| TE 1-1394640-1 (J1) | 22-27, plus shipping | no distributor stocks it; eBay about $22 (2026-10-12), AliExpress about $27 (2026-10-13) |
+| T10 transmitter, Micro-Fit pair, tube, printed caps, screws, a fuse and wire for the 12 V tap | 15-25 | rough |
+| MOST loop-in adapter, TOSLINK cable | 25-60 | rough; depends on the node you tap |
+
+The first reader comes to roughly $150-250, plus shipping and tax. A second reader from the same
+order needs no new boards: about $90-150 for its module, J1, the other hand parts, the tube and
+the cables.
 
 ## Repository map
 
