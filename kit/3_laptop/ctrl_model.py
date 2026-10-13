@@ -28,7 +28,8 @@ sys.path.insert(0, str(HERE))
 
 from virtual_most_source import most_spec as S                     # noqa: E402
 from virtual_most_source.control import classify_block             # noqa: E402
-from gain_tables import C_IMAGE, N_BQ, N_STREAMS, W_1MK, W_ONE, db_word, default_word, raw_word  # noqa: E402
+from gain_tables import (C_IMAGE, N_BQ, N_STREAMS, W_1MK, W_ONE, db_word, default_word,  # noqa: E402
+                         lvl_word, vol_word)
 
 ACK_OPS = {0x6, 0x7, 0x8, 0x9, 0xA, 0xD}
 Cmd = Tuple[int, int]                   # (cmd, p as a 56-bit integer)
@@ -135,24 +136,20 @@ class CtrlDecoder:
     # ---------------------------------------------------------- gains
     def gain_word(self, s: int) -> int:
         """The gain word of stream s, as the RTL picks it (ctrl_decode.v, g_now): its own
-        SpeakerLevel; else the 0x409 level of its kind (stream 2, the parking sensors: byte 10,
-        then byte 8; stream 1: byte 8); else the volume (SpeakerLevel to sink 1, then 0x409
+        SpeakerLevel; else its own 0x409 level (stream 1: byte 9, the navigation; stream 2:
+        byte 11, the parking sensors); else the volume (SpeakerLevel to sink 1, then 0x409
         byte 2), except for stream 3, the chimes; else its start-up level."""
         if self.muted[s]:
             return 0
         own = self.have_db[s]
-        p_first = s == 2 and self.have_p
-        n_first = s in (1, 2) and self.have_n
-        ann = p_first or n_first
+        lvl = (s == 1 and self.have_n) or (s == 2 and self.have_p)
         vol_ok = s != 3
-        use_db = own or (not ann and vol_ok and self.have_db[0])
-        db_sel = self.lvl_db[s] if own else self.lvl_db[0]
-        use_raw = ann or (vol_ok and self.have_a)
-        raw_sel = self.raw_p if p_first else self.raw_n if n_first else self.raw_a
-        if use_db:
-            return db_word(db_sel)
-        if use_raw:
-            return raw_word(raw_sel)
+        if own or (not lvl and vol_ok and self.have_db[0]):
+            return db_word(self.lvl_db[s] if own else self.lvl_db[0])
+        if lvl:
+            return lvl_word(self.raw_p if s == 2 else self.raw_n)
+        if vol_ok and self.have_a:
+            return vol_word(self.raw_a)
         return default_word(s)
 
     def start(self) -> List[Cmd]:
@@ -242,12 +239,13 @@ class CtrlDecoder:
                 self.lvl_db[s] = max(signed8(v) for v in pd[2:])
                 self.have_db[s] = True
                 coef = True
-        elif t.fblock == self.jlr and t.fkt == 0x409 and t.op == 0xC and plen >= 3:
+        elif t.fblock == self.jlr and t.fkt == 0x409 and t.op == 0xC and plen >= 3 and pd[0] == 0:
+            # the gateway's Status, its whole record (kind 0) alone; a byte where TelLen covers it
             self.raw_a, self.have_a = pd[2], True
-            if plen >= 9:
-                self.raw_n, self.have_n = pd[8], True
-            if plen >= 11:
-                self.raw_p, self.have_p = pd[10], True
+            if plen >= 10:
+                self.raw_n, self.have_n = pd[9], True
+            if plen >= 12:
+                self.raw_p, self.have_p = pd[11], True
             coef = True
         out = [self.cmd01(s) for s in range(N_STREAMS) if pend[s]]
         if coef:

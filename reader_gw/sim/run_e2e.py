@@ -5,7 +5,7 @@ ring_stim.py makes the line: frames with the head unit's stereo at channels 8..1
 stereo at 30..33 the head unit switches to later, mono sources at 20, 21 (sink 2: navigation),
 24, 25 (sink 3: the parking sensors) and 26, 27 (sink 4: the chimes), and the head unit's
 telegrams in the control channel - Connect and its Result for each, SpeakerLevel to sinks 1
-and 4, the gateway's levels (byte 8 for navigation, byte 10 for the parking sensors), Mute on
+and 4, the gateway's levels (byte 9 for the navigation, byte 11 for the parking sensors), Mute on
 and off, the second Connect - distorted within SP4 and sampled as the IDES8 does. tb_core.v drives reader_core with it and logs every link.
 Checked, per corner:
   RX     every frame the receiver completed equals the frame sent, byte for byte, once the
@@ -67,8 +67,8 @@ CH_NAV = (20, 21)                   # the navigation sink, mono 16 bit
 CH_PDC = (24, 25)                   # sink 3, the parking sensors, mono 16 bit
 CH_CHIME = (26, 27)                 # sink 4, the chimes, mono 16 bit
 LEVEL_DB = -20                      # SpeakerLevel to sink 1
-NAV_RAW = 25                        # 0x409 byte 8 for the navigation sink
-PDC_RAW = 10                        # 0x409 byte 10 for the parking sensors
+NAV_RAW = 25                        # 0x409 byte 9 for the navigation sink: the level 20, + 5
+PDC_RAW = 10                        # 0x409 byte 11 for the parking sensors: the level 5, + 5
 CHIME_DB = -14                      # SpeakerLevel to sink 4
 
 
@@ -105,7 +105,7 @@ BLOCKS = {
     8: jlr.connect_result(sink=2),
     9: jlr.mute(True),
     10: jlr.mute(False),
-    12: jlr.gateway_levels(31, NAV_RAW, PDC_RAW),
+    12: jlr.gateway_levels(31, NAV_RAW, PDC_RAW, offset=0),
     14: jlr.connect(list(CH_PDC), sink=3),
     15: jlr.connect_result(sink=3),
     16: jlr.connect(list(CH_CHIME), sink=4),
@@ -338,8 +338,8 @@ def run_corner(name, nfr, pwd, jit, ppm, pre, gain_check, work):
     # ---------------------------------------------------------------- GAIN
     if gain_check:
         g0 = gain_tables.db_word(LEVEL_DB) * 256 / gain_tables.ONE          # the engine's target gains
-        g1 = gain_tables.raw_word(NAV_RAW) * 256 / gain_tables.ONE
-        g2 = gain_tables.raw_word(PDC_RAW) * 256 / gain_tables.ONE
+        g1 = gain_tables.lvl_word(NAV_RAW) * 256 / gain_tables.ONE
+        g2 = gain_tables.lvl_word(PDC_RAW) * 256 / gain_tables.ONE
         g3 = gain_tables.db_word(CHIME_DB) * 256 / gain_tables.ONE
         tail = [(n, S[n][0]) for n in sorted(S) if n in E][-120:-20]
         worst_g, n_g = 0.0, 0
@@ -366,7 +366,7 @@ def run_corner(name, nfr, pwd, jit, ppm, pre, gain_check, work):
         allow = 0.002 * 2 ** 23 * (0.4 * g0 + 0.2 * g1 + 0.15 * g2 + 0.1 * g3) + 4
         ok = n_g >= 90 and worst_g <= allow
         print(f"  GAIN : {'PASS' if ok else 'FAIL'}  {n_g} frames at the end: output = stereo x {g0:.4f} ({LEVEL_DB} dB) + "
-              f"navigation x {g1:.4f} (raw {NAV_RAW}) + parking x {g2:.4f} (byte 10 raw {PDC_RAW}) + chimes x "
+              f"navigation x {g1:.4f} (byte 9 raw {NAV_RAW}) + parking x {g2:.4f} (byte 11 raw {PDC_RAW}) + chimes x "
               f"{g3:.4f} ({CHIME_DB} dB), the worst off by {worst_g:.0f} of 2^23 (allowed {allow:.0f})")
         ok_all &= ok
 

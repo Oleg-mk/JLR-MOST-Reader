@@ -11,8 +11,14 @@ Sources:
   [J2] MOST25-to-AUDIO docs/control_commands.md section 2 and docs/vehicle_survey.md: the
        usb2most firmware decompile (smartgauges) - SpeakerLevel 0x46D as the volume on
        Freelander 2 and on the AUD3 amplifiers, signed dB bytes
-  [J3] JLR-HU (as [J1]): the gateway's 0xF0.0x409 Status with the levels in bytes 2, 8 and 10,
-       from one parser, still to be confirmed by a recording
+  [J3] JLR-HU (as [J1]), branch rework-visuals-all-dab @ d6b46e2, AudioControl.0x409 and
+       setVolumeChannels (from 0b7dfa8), the screen's scales in VolumeModal.tsx (35) and
+       AudioLevels.tsx (25): the gateway's 0xF0.0x409 Status - byte 0 the record's kind (0 the
+       whole record, 1 a repeat of the level being changed, without its channel), byte 2 the
+       volume, bytes 7, 9, 10, 11 the phone's, the navigation's, the voice's and the parking
+       sensors' levels, each the level + 5; a Set from the screen is [channel, 0, level + 5].
+       It replaces the same author's earlier parser (main @ 0359e58, Volume.ts: bytes 2, 8, 10).
+       Still to be confirmed by a recording
   [J4] mObridge, MOST25 DA Series Guide, pp. 18-19 (the mono inputs by maker): for Jaguar and Land
        Rover phone sink 2, navigation sink 2, PDC sink 3, chimes sink 4, voice sink 2
   [S6] FBlock_AudioAmplifier_2V4-3: 0x111 Connect, 0x112 DisConnect, 0x46D SpeakerLevel
@@ -62,11 +68,24 @@ FKT_MUTE = S.FKT_MUTE                    # 0x113 [S7]
 FKT_SPEAKER_LEVEL = S.FKT_SPEAKER_LEVEL  # 0x46D [S6], used as the volume [J2]
 FKT_JLR_LEVELS = 0x409                   # [J3] gateway Status: the levels the screen shows
 
-# [J3] byte positions inside the 0x409 Status data - from one parser, to be checked on a recording
-LEVELS_AUDIO = 2
-LEVELS_NAV_PHONE = 8
-LEVELS_PDC = 10
-LEVELS_LEN = 11                          # bytes 0..10; a single telegram holds 12
+# [J3] the 0x409 Status record - to be checked on a recording
+LEVELS_KIND = 0                          # byte 0: the record's kind
+LEVELS_WHOLE = 0                         # ...the whole record, the one that carries the levels
+LEVELS_REPEAT = 1                        # ...a repeat of the level being changed, without its channel
+LEVELS_VOLUME = 2                        # the volume, 0..35 on the screen
+LEVELS_PHONE = 7                         # the levels, 0..25 on the screen, each sent as the level + 5
+LEVELS_NAV = 9
+LEVELS_VOICE = 10
+LEVELS_PDC = 11                          # the parking sensors, front and rear alike
+LEVELS_LEN = 12                          # bytes 0..11, a whole single telegram
+LEVEL_OFFSET = 5
+VOLUME_MAX = 35
+LEVEL_MAX = 25
+# [J3] a Set from the screen, [channel, 0, level + 5], one per channel
+LEVEL_CH_PHONE = (0x05, 0x06)
+LEVEL_CH_NAV = 0x07
+LEVEL_CH_VOICE = 0x08
+LEVEL_CH_PDC = (0x09, 0x0A)
 
 # [J2] 0x46D Set: byte 0 a parameter whose meaning the decompile notes do not give, byte 1 the
 # sink, then one signed dB byte per speaker (7 on the AUD3 decompile: 61 steps -99..0 dB)
@@ -166,21 +185,31 @@ def speaker_level_db(t: Telegram) -> int:
 # ---------------------------------------------------------------------------
 # The gateway's levels -- [J3]
 # ---------------------------------------------------------------------------
-def gateway_levels(audio: int, nav_phone: int = 0, pdc: int = 0, extra: Sequence[int] = (),
+def gateway_levels(volume: int, nav: int = 0, pdc: int = 0, phone: int = 0, voice: int = 0,
+                   length: int = LEVELS_LEN, kind: int = LEVELS_WHOLE, offset: int = LEVEL_OFFSET,
                    source: int = NODE_GATEWAY, target: int = NODE_SCREEN) -> Telegram:
-    """0xF0.01 FktID 0x409 Status: the levels the screen shows, raw bytes. Byte 2 audio,
-    byte 8 navigation and phone, byte 10 parking sensors; the other bytes are not explained,
-    `extra` fills them in order of the free positions for tests."""
+    """0xF0.01 FktID 0x409 Status, the record the screen shows: byte 0 its kind, byte 2 the
+    volume (0..35), bytes 7, 9, 10, 11 the phone's, the navigation's, the voice's and the parking
+    sensors' levels (0..25), each sent as the level + `offset` (5; offset=0 takes the arguments as
+    the bytes on the ring, for the edges of the tables). `length` cuts the record short; `kind`
+    1 makes the repeat that carries no channel. Bytes 1, 3..6 and 8 are not explained: 0."""
+    if not 1 <= length <= LEVELS_LEN:
+        raise ValueError(f"a 0x409 record of {length} bytes")
     data = bytearray(LEVELS_LEN)
-    data[LEVELS_AUDIO] = _ubyte("audio", audio)
-    data[LEVELS_NAV_PHONE] = _ubyte("nav_phone", nav_phone)
-    data[LEVELS_PDC] = _ubyte("pdc", pdc)
-    free = [i for i in range(LEVELS_LEN) if i not in (LEVELS_AUDIO, LEVELS_NAV_PHONE, LEVELS_PDC)]
-    if len(extra) > len(free):
-        raise ValueError(f"{len(extra)} extra bytes, {len(free)} free positions")
-    for i, v in zip(free, extra):
-        data[i] = _ubyte("extra", v)
-    return Telegram(target, source, JLR_FBLOCK, JLR_INST, FKT_JLR_LEVELS, S.OP_STATUS, bytes(data))
+    data[LEVELS_KIND] = _ubyte("kind", kind)
+    data[LEVELS_VOLUME] = _ubyte("volume", volume)
+    for name, pos, level in (("phone", LEVELS_PHONE, phone), ("nav", LEVELS_NAV, nav),
+                             ("voice", LEVELS_VOICE, voice), ("pdc", LEVELS_PDC, pdc)):
+        data[pos] = _ubyte(name, level + offset)
+    return Telegram(target, source, JLR_FBLOCK, JLR_INST, FKT_JLR_LEVELS, S.OP_STATUS, bytes(data[:length]))
+
+
+def screen_level(channel: int, level: int, op: int = S.OP_SET, offset: int = LEVEL_OFFSET,
+                 source: int = NODE_SCREEN, target: int = NODE_GATEWAY) -> Telegram:
+    """0xF0.01 FktID 0x409 Set from the screen: one channel's level, [channel, 0, level + 5]
+    (LEVEL_CH_*). Byte 2 is that level, not the volume: a decoder must leave it alone."""
+    data = bytes([_ubyte("channel", channel), 0, _ubyte("level", level + offset)])
+    return Telegram(target, source, JLR_FBLOCK, JLR_INST, FKT_JLR_LEVELS, op, data)
 
 
 # ---------------------------------------------------------------------------

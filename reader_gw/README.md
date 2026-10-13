@@ -59,7 +59,7 @@ answer - a request's device is its target, an answer's its source.
 | 0x22 0x112 DisConnect, StartResult(Ack) `[SinkNr]` | the stream off, if to the device the position came from |
 | 0x22 0x113 Mute, Set/SetGet/Status `[SinkNr, Status]` | sink 0 = all, kept for every stream whether connected yet or not (R04); bit 0 = mute |
 | 0x22 0x46D SpeakerLevel, Set/SetGet/Status `[param, SinkNr, dB...]` | the loudest speaker, signed dB |
-| 0xF0 0x409, Status | byte 2 the audio level, byte 8 navigation and phone, byte 10 the parking sensors, raw |
+| 0xF0 0x409, Status `[kind, ...]` | the whole record (kind 0) alone, a byte only where TelLen covers it: byte 2 the volume (0..35), byte 9 the navigation, byte 11 the parking sensors (each the level + 5, 0..25); a repeat (kind 1), the screen's Set and SetGet change nothing |
 
 The sinks are JLR's as mObridge's MOST25 DA guide (pp. 18-19) lists them for Jaguar and Land
 Rover: 1 the main source, 2 phone, navigation and voice, 3 the parking sensors, 4 the chimes.
@@ -72,10 +72,12 @@ three 16-bit channels, is refused until a SinkInfo names the format. Channels ar
 ascending; frame byte = channel + 1.
 
 A stream's gain, as the host chose it, with streams 2 and 3 added: muted, 0; its own SpeakerLevel
-in dB; else the 0x409 level of its kind - stream 2 (the parking sensors) byte 10, then byte 8,
-stream 1 byte 8; else the volume - SpeakerLevel to sink 1, else 0x409 byte 2 - but never for
+in dB; else its own 0x409 level - stream 1 byte 9 (the navigation), stream 2 byte 11 (the parking
+sensors); else the volume - SpeakerLevel to sink 1, else 0x409 byte 2 - but never for
 stream 3, the chimes (no volume message is on record for them, and a chime must not vanish with
-the volume turned down); else the stream's start-up level. The start-up levels: the main source
+the volume turned down); else the stream's start-up level. The phone's byte 7 and the voice's
+byte 10 are not applied: sink 2 carries them too, and they are left to a SpeakerLevel to sink 2.
+The start-up levels: the main source
 at -12 dB (a quarter of full amplitude), the others at figures of their own (-6 dB until set
 otherwise, and for good for the chimes unless a SpeakerLevel names sink 4), all four in
 `sim/gain_tables.py`, and the first coefficient set after reset carries them, so a Connect is
@@ -282,7 +284,7 @@ sees it: the head unit's stereo at channels 8..11, a second stereo at 30..33 it 
 later, mono sources at 20, 21 (sink 2, navigation), 24, 25 (sink 3, the parking sensors) and
 26, 27 (sink 4, the chimes), the other channels random, and in the control channel the head
 unit's telegrams - Connect and its Result for each, SpeakerLevel to sinks 1 and 4, the
-gateway's levels with byte 8 and byte 10, Mute on and off, DisConnect and the second Connect -
+gateway's levels with byte 9 and byte 11, Mute on and off, DisConnect and the second Connect -
 Biphase Mark coded,
 distorted inside SP4 (pwd +0.15 and -0.15 UI with 0.195 UI of jitter, +500 and -500 ppm, both
 preamble sets) and sampled as the IDES8 does. `tb_core.v` drives `reader_core` with it and
@@ -293,7 +295,7 @@ every output equals the bit-exact model's; SPDIF, the line read back is well for
 per ring frame, the samples the runs' outputs frame for frame, the edges within 1.5 samples of
 a whole half-cell (the grid plus the loop's share of the line's own jitter); GAIN, at the end
 of the 2000-frame run the output is the second stereo times the SpeakerLevel's -20 dB plus the
-navigation source times its 0x409 byte 8 level, the parking sensors times their byte 10 level and
+navigation source times its 0x409 byte 9 level, the parking sensors times their byte 11 level and
 the chimes times the SpeakerLevel to sink 4 (-14 dB), to 0.2 %. At pwd +0.316 UI with the full jitter the
 low pulses fall to 0.59 UI, outside SP4's 0.743 UI validity bound; there the receiver lost one
 frame in 2000 and its lock with it, and the reader's output restarted cleanly 8 frames later.
@@ -325,8 +327,15 @@ nothing decoded before it ends). `tools/test_log_format.py` runs the parser over
 
 - Which volume message the XF's amplifier gets: 0x46D in dB (usb2most saw it on Freelander 2
   and the AUD3 amplifiers) or the gateway's 0x409 (JLR-HU saw it on the XF). Both are decoded.
-- The 0x409 byte positions (2, 8, 10: from one parser) and its raw-to-dB curve. The table in
-  `gain_rom.vh` is the host's placeholder, (raw / 40)^2, full from 40 up.
+  JLR-HU's table of the amplifier's own functions (0x22.05, ac1fe6d) lists 0x46D and not 0x400
+  Volume: a point for 0x46D.
+- The 0x409 layout. JLR-HU holds two readings of it, both its author's: main @ 0359e58 read
+  bytes 2, 8 and 10; the later rework-visuals-all-dab @ d6b46e2 (from 0b7dfa8) takes byte 0 as
+  the record's kind and the whole record (kind 0) alone: byte 2 the volume, bytes 7, 9, 10 and 11
+  the phone's, the navigation's, the voice's and the parking sensors' levels, each + 5. The later
+  one is used here. The curves in `gain_rom.vh` are the host's placeholders on the screen's
+  scales: the volume (raw / 35)^2, full from 35 up; a level ((byte - 5) / 25)^2, silent to 5,
+  full from 30 up.
 - Whether the stock head unit sends 0x22.0x111 Connect at all, and whether it asks the
   amplifier for SinkInfo; the fallback for a missed Connect is the source's Allocate.Result,
   not coded until a recording asks for it. Cold start: a Connect sent while the FPGA still
@@ -338,9 +347,11 @@ nothing decoded before it ends). `tools/test_log_format.py` runs the parser over
   streams play their start-up levels.
 - Whether JLR mutes with 0x113 Mute, decoded here, or with 0x466 MuteParameters, which
   usb2most's firmware uses and which is not decoded.
-- 0x22.0x467 MixerLevel, among the XF amplifier's messages in Rhys Morgan's projects, is not
-  decoded; MOST25-to-AUDIO's host puts it on top of each stream's level. If the car sets the
-  prompts' or the chimes' level with it, the reader does not follow.
+- 0x22.0x467 MixerLevel is decoded neither here nor by MOST25-to-AUDIO's host. It is not in
+  JLR-HU's table of the amplifier's own functions (0x22.05), and from 0b7dfa8 on JLR-HU addresses
+  the screen's audio settings to the gateway's shadow of the amplifier, 0x22.A1, so 0x467 is taken
+  to be the shadow's. JLR-HU's code does not show who sends it: it hands every FBlock 0x22
+  message to one handler, whatever the node.
 - Whether anything sends a Connect, DisConnect or Mute to the gateway's shadow amplifier, 0x22
   instance 0xA1 at node 0x161: the InstID is not checked, so the reader would take it as the
   amplifier's.

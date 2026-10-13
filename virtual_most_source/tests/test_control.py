@@ -63,8 +63,9 @@ def test_block_layout():
     # other FktIDs split the same way
     g = build_block(jlr.gateway_levels(20, 15, 10))
     check(g[11] == 0x40 and g[12] == 0x9C, f"0x409 Status: {g[11]:02X} {g[12]:02X}")
-    check(g[13] == 0x0B, "0x409 carries 11 bytes")
-    check(g[14 + 2] == 20 and g[14 + 8] == 15 and g[14 + 10] == 10, "levels in bytes 2, 8, 10")
+    check(g[13] == 0x0C, "0x409 carries 12 bytes")
+    check(g[14] == 0 and g[14 + 2] == 20 and g[14 + 9] == 15 + 5 and g[14 + 11] == 10 + 5,
+          "kind 0, the volume in byte 2, the levels + 5 in bytes 9 and 11")
     m = build_block(jlr.mute(True))
     check(m[11] == 0x11 and m[12] == 0x32 and m[13] == 0x02 and m[14:16] == bytes((1, 1)),
           "Mute.SetGet [1, 1]")
@@ -212,13 +213,23 @@ def test_jlr_set():
     refused(lambda: jlr.speaker_level([-129]), "-129 dB")
     refused(lambda: jlr.speaker_level([]), "no speakers")
     refused(lambda: jlr.speaker_level_db(jlr.mute(True)), "a level from a Mute")
-    g = jlr.gateway_levels(31, nav_phone=12, pdc=7, extra=[1, 2])
-    check(g.tellen == 11 and g.data[2] == 31 and g.data[8] == 12 and g.data[10] == 7, "levels in 2, 8, 10")
-    check(g.data[0] == 1 and g.data[1] == 2 and g.data[3] == 0, "extra bytes fill the free positions in order")
+    g = jlr.gateway_levels(31, nav=12, pdc=7, phone=3, voice=9)
+    check(g.tellen == 12 and g.data[0] == 0 and g.data[2] == 31, "the whole record: 12 bytes, kind 0, the volume in 2")
+    check(g.data[7] == 8 and g.data[9] == 17 and g.data[10] == 14 and g.data[11] == 12,
+          "phone 7, navigation 9, voice 10, parking 11, each the level + 5")
+    check(bytes(g.data[i] for i in (1, 3, 4, 5, 6, 8)) == bytes(6), "the bytes nobody has explained stay 0")
     check((g.target, g.source, g.fblock, g.inst, g.op) == (0x016E, 0x0161, 0xF0, 0x01, S.OP_STATUS),
           "0xF0.01 Status from the gateway to the screen")
-    refused(lambda: jlr.gateway_levels(256), "a level over 255")
-    refused(lambda: jlr.gateway_levels(1, extra=[0] * 9), "9 extra bytes for 8 free positions")
+    check(jlr.gateway_levels(30, nav=20, length=10).data == jlr.gateway_levels(30, nav=20).data[:10],
+          "a record cut to 10 bytes")
+    check(jlr.gateway_levels(30, kind=jlr.LEVELS_REPEAT).data[0] == 1, "the repeat, kind 1")
+    check(jlr.gateway_levels(30, nav=3, offset=0).data[9] == 3, "offset 0: the bytes as given")
+    s = jlr.screen_level(jlr.LEVEL_CH_NAV, 12)
+    check((s.target, s.source, s.fblock, s.fkt, s.op, s.data) == (0x0161, 0x016E, 0xF0, 0x409, S.OP_SET, bytes([7, 0, 17])),
+          "a Set from the screen: [channel, 0, level + 5]")
+    refused(lambda: jlr.gateway_levels(256), "a volume over 255")
+    refused(lambda: jlr.gateway_levels(1, nav=251), "a level whose byte passes 255")
+    refused(lambda: jlr.gateway_levels(1, length=13), "a record of 13 bytes")
     a = jlr.allocate_result([20, 21, 22, 23], source_nr=1, src_delay=2)
     check((a.target, a.source, a.fblock, a.inst, a.fkt, a.op, a.data) ==
           (0x0161, 0x0180, 0x24, 0x01, 0x101, S.OP_STATUS, bytes((1, 2, 20, 21, 22, 23))),

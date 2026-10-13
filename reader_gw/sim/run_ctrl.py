@@ -67,7 +67,7 @@ def scenario_basic():
         tel(jlr.mute(False)),
         tel(jlr.gateway_levels(40, 18, 7)),
         tel(jlr.speaker_level([-20, -20, -22, -22, -18, -18, -40])),     # sink 1 in dB: wins over 0x409 byte 2
-        tel(jlr.gateway_levels(10, 30, 7)),                                # byte 2 no longer counts, byte 8 does
+        tel(jlr.gateway_levels(10, 30, 7)),                                # byte 2 no longer counts, byte 9 does
         tel(jlr.connect([20, 21], sink=2)),                                # mono 16 bit on stream 1
         tel(jlr.connect([30, 31, 32, 33, 34, 35], sink=3)),                # 6 channels: ambiguous, refused
         tel(sinkinfo(3, 3, 2, [30, 31, 32, 33, 34, 35])),                  # SinkInfo names it: 24-bit stereo
@@ -88,15 +88,19 @@ def scenario_basic():
         tel(jlr.speaker_level([-128, -128, -128, -128, -128, -128, -128])),  # silence by dB
         tel(jlr.speaker_level([0, 0, 0, 0, 0, 0, 0])),
         tel(jlr.speaker_level([18, -3])),                                  # +18 dB: the loudest counts
-        tel(jlr.gateway_levels(0, 0, 0)),                                  # raw 0 for nav/phone: silence there
+        tel(jlr.gateway_levels(0, 0, 0)),                                  # level 0 (byte 5) for the navigation: silence
         tel(jlr.connect([24, 25], sink=3)),                                # parking sensors, mono 16 bit, stream 2
         tel(jlr.connect([26, 27], sink=4)),                                # chimes, mono 16 bit, stream 3
         tel(jlr.connect_result(sink=4)),                                   # confirms sink 4
-        tel(jlr.gateway_levels(30, 20, 12)),                               # byte 10 for the parking sensors
+        tel(jlr.gateway_levels(30, 20, 12)),                               # byte 11 for the parking sensors
         tel(jlr.speaker_level([-9, -12], sink=4)),                         # the chimes' own level
         tel(jlr.mute(True, sink=4)),
         tel(jlr.mute(False, sink=0)),                                      # all four on again
-        tel(Telegram(SCR, G, 0xF0, 1, 0x409, 0xC, bytes([0, 0, 22, 0, 0, 0, 0, 0, 19]))),  # 9 bytes: no byte 10
+        tel(Telegram(SCR, G, 0xF0, 1, 0x409, 0xC, bytes([0, 0, 22, 0, 0, 0, 0, 0, 0, 19]))),  # 10 bytes: no byte 11
+        tel(jlr.gateway_levels(20, nav=25, pdc=25, kind=jlr.LEVELS_REPEAT)),  # kind 1: changes nothing
+        tel(jlr.screen_level(jlr.LEVEL_CH_NAV, 3)),                        # the screen's Set: nothing
+        tel(jlr.screen_level(jlr.LEVEL_CH_PDC[0], 3, op=0x2)),             # its SetGet: nothing
+        tel(jlr.gateway_levels(33, nav=4, pdc=25, phone=25, voice=0)),     # bytes 7 and 10 count for nothing
         tel(jlr.disconnect(sink=4)),
         tel(sinkinfo(4, 2, 1, [44, 45])),                                  # the device's word on sink 4
         IDLE,
@@ -127,6 +131,8 @@ def scenario_refusals():
         tel(Telegram(A, G, 0x22, 5, 0x46D, 0x0, bytes([0, 5, 0xEC]))),                   # sink 5
         tel(Telegram(A, G, 0x22, 5, 0x46D, 0x0, bytes([0, 1]))),                         # no level byte
         tel(Telegram(SCR, G, 0xF0, 1, 0x409, 0xC, bytes([0, 0]))),                       # 0x409 too short
+        tel(Telegram(SCR, G, 0xF0, 1, 0x409, 0xC, bytes([1, 0, 30] + [9] * 9))),         # kind 1: not the whole record
+        tel(Telegram(SCR, G, 0xF0, 1, 0x409, 0xC, bytes([0xFF, 0, 30] + [9] * 9))),      # kind 0xFF
         tel(Telegram(SCR, G, 0xF0, 1, 0x409, 0x0, bytes(11))),                           # 0x409 Set
         tel(Telegram(SCR, G, 0xF1, 1, 0x409, 0xC, bytes(11))),                           # FBlock 0xF1
         tel(jlr.gateway_levels(20, 20, 20), msg_type=3),                                 # a system message
@@ -160,7 +166,7 @@ def scenario_acks():
         tel(Telegram(G, A, 0x22, 5, 0x113, 0xC, bytes([1, 1]))),                         # Mute.Status from the amp
         tel(Telegram(G, A, 0x22, 5, 0x46D, 0xC, bytes([0, 1, 0xF6, 0xF0]))),             # SpeakerLevel.Status
         tel(Telegram(A, G, 0x22, 5, 0x113, 0x0, bytes([0, 0]))),                         # Mute.Set, all sinks off
-        tel(Telegram(SCR, G, 0xF0, 1, 0x409, 0xC, bytes([0, 0, 33]))),                   # 3 bytes: audio only
+        tel(Telegram(SCR, G, 0xF0, 1, 0x409, 0xC, bytes([0, 0, 33]))),                   # 3 bytes: the volume only
         tel(Telegram(A, G, 0x22, 5, 0x112, 0x6, bytes([0]))),                            # Ack, 1 byte: nothing
         tel(Telegram(A, G, 0x22, 5, 0x111, 0xD, bytes([0, 1, 1, 0, 8, 9, 10, 11]))),     # ResultAck to the amp: not from it
         tel(Telegram(A, G, 0x22, 5, 0x113, 0xA, bytes([0, 1, 1, 1]))),                   # ProcessingAck: no mute
@@ -230,8 +236,12 @@ def random_block(rnd: random.Random):
         elif fkt == 0x110:
             op = 0xC
             tgt, src = G, A
+        elif fkt == 0x409:
+            op = rnd.choice([0xC, 0xC, 0xC, 0x0, 0x2])
+            if op != 0xC:
+                tgt, src = G, SCR                                          # the screen's Set, SetGet
         else:
-            op = {0x112: rnd.choice([0x2, 0x6]), 0x409: 0xC}.get(fkt, rnd.choice([0x0, 0x2, 0xC]))
+            op = {0x112: rnd.choice([0x2, 0x6])}.get(fkt, rnd.choice([0x0, 0x2, 0xC]))
     else:
         tgt = rnd.choice([A, A, A, SCR, G, 0x03C8, 0x0005, 0x1234, 0x0170])
         src = rnd.choice([G, G, G, A, 0x0400, 0x0500, 0x02FF, 0x0170])
@@ -277,8 +287,11 @@ def random_block(rnd: random.Random):
         sink = rnd.choice([1, 1, 2, 3, 4]) if clean else rnd.choice([1, 1, 2, 3, 4, 0, 5])
         data = bytes([rnd.randrange(256), sink] + [v & 0xFF for v in levels])
     elif fkt == 0x409:
-        n = rnd.choice([11, 11, 11, 3, 9, 12]) if clean else rnd.choice([11, 11, 3, 9, 2, 0, 12])
-        data = bytes(rnd.randrange(46) for _ in range(n))
+        n = rnd.choice([12, 12, 12, 3, 10, 9, 11]) if clean else rnd.choice([12, 12, 3, 10, 2, 0, 9, 11])
+        data = bytearray(rnd.randrange(46) for _ in range(n))
+        if n:
+            data[0] = rnd.choice([0, 0, 0, 1]) if clean else rnd.choice([0, 0, 1, 2, 0xFF])
+        data = bytes(data)
     else:
         data = bytes(rnd.randrange(256) for _ in range(rnd.randrange(13)))
     if op in ACK_OPS:
@@ -304,9 +317,11 @@ def scenario_random(n: int, seed: int):
 
 def check_gain_rules():
     """The levels the header of ctrl_decode.v promises, asked of the model directly (the RTL is
-    then held to the model frame for frame): the parking sensors take 0x409 byte 10 before byte 8,
-    the chimes never take the volume, a stream's own SpeakerLevel wins."""
-    from gain_tables import db_word, default_word, raw_word
+    then held to the model frame for frame): 0x409 counts from the whole record (kind 0) of a
+    Status alone, a byte where TelLen covers it; stream 1 takes byte 9 and stream 2 byte 11, each
+    the level + 5 on 25, before the volume (byte 2 on 35); bytes 7 and 10 count for nothing; the
+    chimes never take the volume; a stream's own SpeakerLevel wins."""
+    from gain_tables import db_word, default_word, lvl_word, vol_word
     m = CtrlDecoder()
     feed = lambda t: m.block(build_block(t))
     fails = []
@@ -316,24 +331,34 @@ def check_gain_rules():
             fails.append(f"stream {s}: {m.gain_word(s):#x}, wanted {w:#x} ({why})")
     for s in range(4):
         want(s, default_word(s), "start-up level")
-    feed(Telegram(SCR, G, 0xF0, 1, 0x409, 0xC, bytes([0, 0, 30])))     # the volume only
-    want(0, raw_word(30), "the volume")
-    want(1, raw_word(30), "no nav level yet: the volume")
-    want(2, raw_word(30), "no parking level yet: the volume")
+    feed(jlr.gateway_levels(30, nav=20, pdc=12, kind=jlr.LEVELS_REPEAT))
+    feed(jlr.screen_level(jlr.LEVEL_CH_NAV, 20))
+    feed(jlr.screen_level(jlr.LEVEL_CH_PDC[0], 20, op=0x2))
+    for s in range(4):
+        want(s, default_word(s), "kind 1, the screen's Set and SetGet change nothing")
+    feed(jlr.gateway_levels(30, length=3))                                    # the volume only
+    want(0, vol_word(30), "the volume")
+    want(1, vol_word(30), "no navigation level yet: the volume")
+    want(2, vol_word(30), "no parking level yet: the volume")
     want(3, default_word(3), "the chimes never take the volume")
-    feed(Telegram(SCR, G, 0xF0, 1, 0x409, 0xC, bytes([0, 0, 30, 0, 0, 0, 0, 0, 20])))   # nav, no byte 10
-    want(1, raw_word(20), "byte 8")
-    want(2, raw_word(20), "no byte 10: byte 8")
-    feed(jlr.gateway_levels(30, 20, 12))
-    want(2, raw_word(12), "byte 10")
-    want(1, raw_word(20), "byte 8 still")
-    feed(jlr.gateway_levels(0, 20, 12))
+    feed(jlr.gateway_levels(30, nav=20, pdc=12, length=10))                   # byte 9, no byte 11
+    want(1, lvl_word(25), "byte 9, the level + 5")
+    want(2, vol_word(30), "no byte 11: the volume, not byte 9")
+    feed(jlr.gateway_levels(30, nav=20, pdc=12, phone=25, voice=25))
+    want(2, lvl_word(17), "byte 11")
+    want(1, lvl_word(25), "byte 9 still, not the phone's byte 7 or the voice's byte 10")
+    feed(jlr.gateway_levels(30, nav=5, pdc=40, offset=0))
+    want(1, 0, "byte 5, the level 0: silence")
+    want(2, db_word(0), "byte 40, past the scale: full")
+    feed(jlr.gateway_levels(0, nav=20, pdc=12))
+    want(0, 0, "the volume at 0: silence")
     want(3, default_word(3), "the chimes with the volume at 0")
     feed(jlr.speaker_level([-9, -12], sink=4))
     want(3, db_word(-9), "its own SpeakerLevel")
     feed(jlr.speaker_level([-20], sink=1))
     want(0, db_word(-20), "SpeakerLevel to sink 1")
-    want(2, raw_word(12), "byte 10 before the volume")
+    want(2, lvl_word(17), "byte 11 before the volume")
+    want(1, lvl_word(25), "byte 9 before the volume")
     feed(jlr.mute(True, sink=3))
     want(2, 0, "muted")
     want(3, db_word(-9), "the mute of sink 3 only")
@@ -392,8 +417,8 @@ def main():
         print("FAIL  rtl/gain_rom.vh is stale: run gain_tables.py")
         return 1
     rule_fails = check_gain_rules()
-    print(f"{'PASS' if not rule_fails else 'FAIL'}  gain rules: the parking sensors' byte 10, the chimes' own "
-          f"level, SpeakerLevel first")
+    print(f"{'PASS' if not rule_fails else 'FAIL'}  gain rules: 0x409 kind 0 only, bytes 9 and 11 on 25, the "
+          f"volume on 35, the chimes' own level, SpeakerLevel first")
     for f in rule_fails:
         print("        " + f)
     if rule_fails:

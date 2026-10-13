@@ -108,8 +108,8 @@ def _fields(kind: int, r: bytes) -> tuple[int | None, dict]:
             # s0 L R, s1 L R, s2 L R, out L R (63..78), then s3 L R (93..96), added with stream 3
             "peaks": [_u16(r, 63 + 2 * i) for i in range(8)] + [_u16(r, 93), _u16(r, 95)],
             "chmask": int.from_bytes(r[79:87], "little"),
-            # bits 0..13 at 87..88 (streams 0..2, the 0x409 audio and nav levels), 14..18 at 97
-            # (stream 3, the 0x409 parking level)
+            # bits 0..13 at 87..88 (streams 0..2; 0x409 byte 2, the volume, and byte 9, the
+            # navigation, heard), 14..18 at 97 (stream 3; 0x409 byte 11, the parking sensors, heard)
             "dstate": (_u16(r, 87) & 0x3FFF) | (r[97] & 0x1F) << 14,
             "dark_ms": _u16(r, 89), "cold_ms": _u16(r, 91),
         }

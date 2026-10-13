@@ -116,11 +116,11 @@ last STATUS.
             counts from its second write after power-up; the interval runs from a clock before
             the last STATUS went out to three clocks before this one was taken)
     87..88  ctrl_decode per stream s at bits 4s..4s+3: on, confirmed, muted, own level;
-            b12 0x409 audio level heard, b13 0x409 nav level heard
+            b12 0x409 volume (byte 2) heard, b13 0x409 navigation level (byte 9) heard
     89..90  DARK in ms, 91..92 COLD in ms, as the laptop set them (0 when not attached)
     93..96  input peaks of stream 3 (sink 4, the chimes), L and R, the same as 63..74
     97      b0..b3 ctrl_decode for stream 3: on, confirmed, muted, own level; b4 0x409 parking
-            level (byte 10) heard
+            level (byte 11) heard
     98      X
 
 ### SET, T = 53, 26 bytes: each coefficient set ctrl_decode sends

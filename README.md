@@ -171,13 +171,17 @@ That is the price of not emulating it, and it decides how you use the output.
 
 **Unknown until a bench or a car:**
 
-- **Volume message:** which one the XF's amplifier actually gets. Both are decoded.
+- **Volume message:** which one the XF's amplifier actually gets. Both are decoded. JLR-HU's
+  table of the amplifier's own functions lists 0x46D SpeakerLevel and not 0x400 Volume: a point
+  for 0x46D.
 - **Connect:** whether the stock head unit sends 0x22.0x111 Connect at all.
-- **The 0x409 levels:** their exact byte positions and level curve.
+- **The 0x409 levels:** JLR-HU's author has read them two ways; the later one is used (the volume
+  in byte 2, the navigation in byte 9, the parking sensors in byte 11). The level curves are
+  placeholders.
 - **Mute:** whether JLR mutes with 0x113 Mute, which is decoded, or with 0x466 MuteParameters,
   which is not (usb2most's firmware mutes with 0x466).
-- **MixerLevel:** 0x22.0x467 is among the XF amplifier's messages and is not decoded. If the car
-  sets the prompts' or the chimes' level with it, the reader does not follow.
+- **MixerLevel:** 0x22.0x467 is not decoded. It is not among the amplifier's own functions in
+  JLR-HU's table and is taken to belong to the gateway's shadow amplifier (below).
 - **The gateway's shadow amplifier,** 0x22 instance 0xA1 at node 0x161: the reader does not tell
   it apart from the amplifier, so a Connect or a Mute sent to it would act on the reader's streams.
 - **Real hardware:** how a real S/PDIF receiver locks to the output's edges, which sit on a

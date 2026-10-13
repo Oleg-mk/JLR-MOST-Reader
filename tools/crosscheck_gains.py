@@ -12,23 +12,23 @@ The harness takes the host's stream count from its dsp_map.h (DSP_N_STREAMS): th
 the chimes). With four, every stream is compared and the reader's rules for streams 2 and 3 are
 the host's too, so a difference there is a finding, not an exception.
 
+The gateway's 0xF0.0x409 goes in as JLR-HU reads it now (d6b46e2): mostly the whole record
+(kind 0), 3, 10 or 12 bytes long, so the volume (byte 2), the navigation (byte 9) and the
+parking sensors (byte 11) each come with and without what follows; its bytes 0..45 reach both
+scales' ends (a level byte of 5 or less is silence, 30 and up full, a volume of 35 and up full).
+The rest must change nothing on either side: the repeat (kind 1), the screen's Set and SetGet.
+
 Known, intended differences, left out of the comparison:
   - the host puts the amplifier's extra sinks on its streams 1, 2, ... in SinkNr order among the
     connected ones it can take and zeroes a stream without a sink; the decoder maps sink k to
     stream k - 1 statically (a stream without a position plays zeros anyway). So stream k is
     compared only while the host has sink k + 1 on it. A list of 3 or 6 channels, which neither
     plays before a SinkInfo names its format, moves the host's sinks above it down a stream.
-  - the host's 0x409 curve runs through log10f in float, so a word from a raw byte may differ
+  - the host's 0x409 curves run through log10f in float, so a word from a raw byte may differ
     by one unit in the last place; that is counted separately and allowed.
   - the host also decodes 0x22.0x400 Volume (not a JLR message); not generated here.
-  - the host also puts 0x22.0x467 MixerLevel on top of each stream's level; the decoder does not
-    decode it (reader_gw/README.md, "Not proved"); not generated here.
   - until the main volume has been heard (0x409, or SpeakerLevel to sink 1) the reader plays its
     start-up levels where the host was silent; those blocks are not compared.
-  - against a three-stream host only: the reader has a fourth stream (sink 4, the chimes) and
-    gives stream 2 (sink 3, the parking sensors) 0x409 byte 10 before byte 8; that host had byte 8
-    for both. Stream 3 is not compared, and stream 2 only while the reader has not heard a byte 10:
-    half of the sequences therefore send the 0x409 Status 9 bytes long, without it.
 
     python tools/crosscheck_gains.py [--sequences N] [--seed S]
 Needs MOST25-to-AUDIO and a host gcc, found as crosscheck_most_msg.py finds them.
@@ -36,7 +36,6 @@ Needs MOST25-to-AUDIO and a host gcc, found as crosscheck_most_msg.py finds them
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import os
 import random
 import re
@@ -50,6 +49,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "reader_gw" / "sim"))
 
 from virtual_most_source import jlr                                      # noqa: E402
+from virtual_most_source import most_spec as S                           # noqa: E402
 from virtual_most_source.control import build_block                      # noqa: E402
 from ctrl_model import CtrlDecoder                                       # noqa: E402
 from gain_tables import W_1MK                                            # noqa: E402
@@ -107,11 +107,23 @@ def host_streams() -> int:
     return int(m.group(1)) if m else 3
 
 
+def levels_409(rnd: random.Random):
+    """A 0x409 telegram (see the header): the whole record, or one that must change nothing."""
+    r = rnd.random()
+    b = lambda: rnd.randrange(46)                   # noqa: E731 - a byte as it goes on the ring
+    if r < 0.75:
+        return jlr.gateway_levels(b(), nav=b(), pdc=b(), phone=b(), voice=b(), offset=0,
+                                  length=rnd.choice([3, 10, 12, 12]))
+    if r < 0.85:
+        return jlr.gateway_levels(b(), nav=b(), pdc=b(), offset=0, kind=jlr.LEVELS_REPEAT)
+    ch = rnd.choice([*jlr.LEVEL_CH_PHONE, jlr.LEVEL_CH_NAV, jlr.LEVEL_CH_VOICE, *jlr.LEVEL_CH_PDC])
+    return jlr.screen_level(ch, rnd.randrange(26), op=rnd.choice([S.OP_SET, S.OP_SETGET]))
+
+
 def sequence(rnd: random.Random, ns: int):
     """Sinks 1 .. ns connected (with the Result the host waits for), then random levels, mutes,
     and the extra sinks going and coming."""
     tels = []
-    short_409 = rnd.random() < 0.5                  # 0x409 without byte 10: stream 2 compared throughout
     extra = list(range(2, ns + 1))
     first = [(1, 4), (2, rnd.choice([2, 4])), (3, rnd.choice([2, 3, 4, 6]))] + [(s, 2) for s in range(4, ns + 1)]
     for sink, nch in first:
@@ -120,10 +132,7 @@ def sequence(rnd: random.Random, ns: int):
     for _ in range(40):
         r = rnd.random()
         if r < 0.3:
-            g = jlr.gateway_levels(rnd.randrange(46), rnd.randrange(46), rnd.randrange(46))
-            if short_409:
-                g = dataclasses.replace(g, data=g.data[:9])
-            tels.append(g)
+            tels.append(levels_409(rnd))
         elif r < 0.55:
             n = rnd.choice([1, 2, 7])
             lv = [rnd.choice([rnd.randrange(-128, 128), rnd.randrange(-60, 1), rnd.randrange(-125, -115)])
@@ -187,8 +196,6 @@ def main() -> int:
             for s in range(1, ns):
                 if sinks[s - 1] != s + 1:
                     continue        # the host has another sink (or none) on this stream
-                if ns == 3 and s == 2 and model.have_p and not model.have_db[2] and not model.muted[2]:
-                    continue        # a three-stream host knows no byte 10
                 pairs += [(w[2 * s], model.gain_word(s), f"s{s} L"), (w[2 * s + 1], model.gain_word(s), f"s{s} R")]
                 s_cmp[s] += 1
             for c_word, m_word, what in pairs:

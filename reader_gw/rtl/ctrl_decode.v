@@ -37,8 +37,12 @@
 //   0x22 0x113 Mute         Set/SetGet/Status [SinkNr, Status]          sink 0 = all, kept for every stream,
 //                                                                      connected or not (audit R04); bit 0 = mute
 //   0x22 0x46D SpeakerLevel Set/SetGet/Status [param, SinkNr, dB...]    the loudest speaker, signed dB
-//   0xF0 0x409 (JLR)        Status                                     byte 2 audio, byte 8 nav/phone, byte 10
-//                                                                      parking sensors, raw
+//   0xF0 0x409 (JLR)        Status [kind, ...]                         the whole record (kind 0) alone, a byte
+//                                                                      where TelLen covers it: byte 2 the volume
+//                                                                      (0..35), byte 9 the navigation, byte 11 the
+//                                                                      parking sensors (each the level + 5, 0..25);
+//                                                                      kind 1, a Set, a SetGet change nothing
+//                                                                      (JLR-HU d6b46e2, AudioControl)
 // The sinks, JLR's as mObridge's MOST25 DA guide (pp. 18-19) gives them for Jaguar and Land Rover:
 // 1 the main source, 2 phone, navigation and voice, 3 the parking sensors, 4 the chimes.
 // Formats (audit R09): from SinkInfo the full tuple, PCM only, 2 or 3 bytes a sample, 1 or 2
@@ -48,14 +52,14 @@
 // stereo or three 16-bit channels, is refused until a SinkInfo names the format. Channels are
 // 0..59, ascending; frame byte = channel + 1 (Data Byte k is frame byte k+1).
 // A stream's gain, as the host chose it, with stream 2 and 3 added: muted -> 0; its own
-// SpeakerLevel (dB); else the 0x409 level of its kind - stream 2 (parking sensors) byte 10, then
-// byte 8, stream 1 byte 8; else the volume: SpeakerLevel to sink 1, else 0x409 byte 2 (not for
+// SpeakerLevel (dB); else its own 0x409 level - stream 1 byte 9 (the navigation), stream 2
+// byte 11 (the parking sensors); else the volume: SpeakerLevel to sink 1, else 0x409 byte 2 (not for
 // stream 3, the chimes: no volume message is on record for them, and a chime must not vanish
 // with the volume turned down); else the stream's start-up level (GAIN_DEF_*: the user's
 // decision, a third of full volume or less for the main source, their own figures for the
 // others), which is also what the first coefficient set after reset carries, so a Connect is
 // heard before any level message.
-// The dB -> word and raw -> word tables are gain_rom.vh, written by sim/gain_tables.py, which
+// The dB, volume and level -> word tables are gain_rom.vh, written by sim/gain_tables.py, which
 // is also their model. Positions survive a lost lock (audit R06: a gap must not silence the one
 // output); a ring restart takes the FPGA's supply with it and so clears everything.
 //
@@ -97,8 +101,8 @@ module ctrl_decode #(
     output wire        par_sense_o,         // ...and what it is (the log)
     output wire        busy,                // commands pending or going out
     output wire [18:0] dstate               // the log: per stream s at 4s (s 0..2), 14 (s 3): on, confirmed,
-                                            // muted, own level; 12 0x409 audio level heard, 13 0x409 nav
-                                            // level heard, 18 0x409 parking level heard
+                                            // muted, own level; 12 0x409 volume (byte 2) heard, 13 0x409
+                                            // navigation (byte 9) heard, 18 0x409 parking (byte 11) heard
 );
 `include "gain_rom.vh"
     integer k;
@@ -261,7 +265,7 @@ module ctrl_decode #(
             c_disc  <= valid && is_amp && fkt == 12'h112 && op_sr  && plen >= 4'd1 && sink14;
             c_mute  <= valid && is_amp && fkt == 12'h113 && op_sgs && plen >= 4'd2 && sink <= 8'd4;
             c_spk   <= valid && is_amp && fkt == 12'h46D && op_sgs && plen >= 4'd3 && lsink14;
-            c_409   <= valid && is_jlr && fkt == 12'h409 && op == 4'hC && plen >= 4'd3;
+            c_409   <= valid && is_jlr && fkt == 12'h409 && op == 4'hC && plen >= 4'd3 && pd[0] == 8'd0;
             for (k = 0; k < 4; k = k + 1) begin
                 sel[k]  <= (sink[2:0] == k + 1);                         // sink 1..4 -> stream 0..3 (every use has sink14)
                 lsel[k] <= (lsink[2:0] == k + 1);                        // SpeakerLevel's (every use has lsink14)
@@ -370,8 +374,8 @@ module ctrl_decode #(
             end
             coef_s <= m_mute || m_spk || m_409;
             a409_s <= m_409;
-            n409_s <= m_409 && plen >= 4'd9;
-            p409_s <= m_409 && plen >= 4'd11;
+            n409_s <= m_409 && plen >= 4'd10;
+            p409_s <= m_409 && plen >= 4'd12;
             m07    <= smax(m03, m47);
             m89_5  <= m89_4;
         end
@@ -381,16 +385,15 @@ module ctrl_decode #(
     // the gain of stream gs (see the header), one lookup in each table
     reg  [1:0]  gs;
     wire        own     = have_db[gs];
-    wire        p_first = gs == 2'd2 && have_p;                          // stream 2: 0x409 byte 10 first,
-    wire        n_first = (gs == 2'd1 || gs == 2'd2) && have_n;          // streams 1, 2: byte 8, before the volume
-    wire        ann     = p_first || n_first;
+    wire        lvl     = (gs == 2'd1 && have_n) || (gs == 2'd2 && have_p);   // its own 0x409 level: stream 1
+                                                                         // byte 9, stream 2 byte 11, before the volume
     wire        vol_ok  = gs != 2'd3;                                    // the chimes never take the volume
-    wire        use_db  = own || (!ann && vol_ok && have_db[0]);
+    wire        use_db  = own || (!lvl && vol_ok && have_db[0]);
     wire [7:0]  db_sel  = own ? lvl_db[gs] : lvl_db[0];
-    wire        use_raw = ann || (vol_ok && have_a);
-    wire [7:0]  raw_sel = p_first ? raw_p : n_first ? raw_n : raw_a;
+    wire [7:0]  lvl_sel = gs == 2'd2 ? raw_p : raw_n;
     wire [31:0] g_def   = gs == 2'd0 ? GAIN_DEF_MAIN : gs == 2'd1 ? GAIN_DEF_S1 : gs == 2'd2 ? GAIN_DEF_S2 : GAIN_DEF_S3;
-    wire [31:0] g_now   = muted[gs] ? 32'd0 : use_db ? gain_db_word(db_sel) : use_raw ? gain_raw_word(raw_sel) : g_def;
+    wire [31:0] g_now   = muted[gs] ? 32'd0 : use_db ? gain_db_word(db_sel) : lvl ? gain_lvl_word(lvl_sel) :
+                          (vol_ok && have_a) ? gain_vol_word(raw_a) : g_def;
     // the next stream whose position goes out
     wire [1:0]  ps = pos_pend[0] ? 2'd0 : pos_pend[1] ? 2'd1 : pos_pend[2] ? 2'd2 : 2'd3;
     wire [1:0]  pw = !pos_on[ps] ? 2'd0 : pos_w3[ps] ? 2'd3 : 2'd2;      // P[1:0]: off, 16 bit, 24 bit
@@ -528,8 +531,8 @@ module ctrl_decode #(
                 end
                 if (coef_s) coef_pend <= 1'b1;
                 if (a409_s) begin raw_a <= pd[2]; have_a <= 1'b1; end
-                if (n409_s) begin raw_n <= pd[8]; have_n <= 1'b1; end
-                if (p409_s) begin raw_p <= pd[10]; have_p <= 1'b1; end
+                if (n409_s) begin raw_n <= pd[9]; have_n <= 1'b1; end
+                if (p409_s) begin raw_p <= pd[11]; have_p <= 1'b1; end
             end
         end
     end
